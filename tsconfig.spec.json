@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "tsBuildInfoFile": ".tsbuildinfo/spec.tsbuildinfo",
+    "types": []
+  },
+  "include": ["src/**/*.spec.ts", "src/**/*.test.ts", "src/**/__tests__/**/*.ts"]
+}
