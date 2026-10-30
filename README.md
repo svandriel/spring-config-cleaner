@@ -4,7 +4,7 @@ Cleans Spring configuration YAML files.
 
 ## Requirements
 
-- Node.js >= 22
+- Node.js 24.22.1 or newer on the 24.x line (patched for CVE-2026-111497)
 
 ## Install
 
