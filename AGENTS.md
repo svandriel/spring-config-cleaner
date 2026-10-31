@@ -36,6 +36,10 @@ Double quotes, semicolons, 100-wide, 2-space indent, trailing commas `all`. Biom
 
 Avoid `for`/`while` loops whenever possible — prefer functional iteration (`map`, `reduce`, `filter`, `find`, `flatMap`, `some`/`every`, etc.). Use a loop only when functional form genuinely doesn't fit (e.g. early-exit-heavy parsers where a loop is materially clearer).
 
+## Formatting
+
+You don't have to care about formatting — the pre-commit hook (lint-staged → Biome) enforces proper formatting on commit. Don't hand-format or pre-run formatters just to satisfy style; write correct code, commit, and let the hook handle it.
+
 ## Workflow rules
 
 - Always work in feature branches off `main`. Main branch is locked, PR's only.
