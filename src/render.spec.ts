@@ -38,7 +38,7 @@ const fix = { mode: "fix", style: plainStyle } as const;
 
 describe("renderResults", () => {
   it("renders the clean line for no files and for clean files", () => {
-    expect(renderResults([], check)).toBe("✔ No duplicates found.\n");
+    expect(renderResults([], check)).toBe("✓ No duplicates found.\n");
     expect(
       renderResults(
         [
@@ -47,7 +47,7 @@ describe("renderResults", () => {
         ],
         check,
       ),
-    ).toBe("✔ No duplicates found.\n");
+    ).toBe("✓ No duplicates found.\n");
   });
 
   it("renders a finding without a frame when the source is unknown", () => {
@@ -146,16 +146,16 @@ describe("renderResults", () => {
       { file: "application-test.yml", redundant: [], source: "" },
     ];
     expect(renderResults(results, fix)).toBe(
-      "✔ application-prod.yml  removed 2 duplicates\n" +
+      "✓ application-prod.yml  removed 2 duplicates\n" +
         "  − server.port = 8080\n" +
         "  − logging.level = info\n" +
         "\n" +
-        "✔ Removed 2 duplicates from 1 file.\n",
+        "✓ Removed 2 duplicates from 1 file.\n",
     );
   });
 
   it("reports a clean fix run with the success line", () => {
-    expect(renderResults([{ file: "a.yml", redundant: [] }], fix)).toBe("✔ No duplicates found.\n");
+    expect(renderResults([{ file: "a.yml", redundant: [] }], fix)).toBe("✓ No duplicates found.\n");
   });
 
   it("renders a positioned parse error with a frame and a syntax hint", () => {
@@ -225,7 +225,10 @@ describe("renderResults", () => {
       ...check,
       hints: [
         { label: "Remove them:", command: "spring-config-cleaner --fix ." },
-        { label: "Preview first:", command: "spring-config-cleaner --fix --dry-run ." },
+        {
+          label: "Preview first:",
+          command: "spring-config-cleaner --fix --dry-run .",
+        },
       ],
     });
     expect(rendered).toBe(
@@ -241,7 +244,11 @@ describe("renderResults", () => {
 
   it("summarises duplicates and errors together", () => {
     const results: FileResult[] = [
-      { file: "a.yml", redundant: [entry("x", 1)], error: new ConfigError("a.yml", "bad") },
+      {
+        file: "a.yml",
+        redundant: [entry("x", 1)],
+        error: new ConfigError("a.yml", "bad"),
+      },
       { file: "b.yml", redundant: [] },
     ];
     expect(renderResults(results, check)).toContain(
@@ -253,7 +260,10 @@ describe("renderResults", () => {
     const results: FileResult[] = [
       { file: "application-prod.yml", redundant: [entry("server.port", 8080)] },
     ];
-    const rendered = renderResults(results, { mode: "check", style: createStyle(true) });
+    const rendered = renderResults(results, {
+      mode: "check",
+      style: createStyle(true),
+    });
     expect(rendered).toContain("\u001b[36mapplication-prod.yml\u001b[39m");
     expect(rendered).toContain("\u001b[33mduplicate\u001b[39m");
     expect(rendered).toContain("\u001b[1mserver.port\u001b[22m");

@@ -57,10 +57,10 @@ defines the same value.
 `--fix` prints the entries it removed and how to verify:
 
 ```text
-✔ /srv/app/config/application-prod.yml  removed 1 duplicate
+✓ /srv/app/config/application-prod.yml  removed 1 duplicate
   − my.app.maxThreads = 8
 
-✔ Removed 2 duplicates from 2 files.
+✓ Removed 2 duplicates from 2 files.
 
   Verify:  spring-config-cleaner --check /srv/app/config
 ```

@@ -55,7 +55,10 @@ function hintsFor(mode: RenderMode, duplicates: number, dir: string, options: Op
   if (mode === "check") {
     return [
       { label: "Remove them:", command: commandFor(["--fix"], dir, options) },
-      { label: "Preview first:", command: commandFor(["--fix", "--dry-run"], dir, options) },
+      {
+        label: "Preview first:",
+        command: commandFor(["--fix", "--dry-run"], dir, options),
+      },
     ];
   }
   if (mode === "dry-run") {

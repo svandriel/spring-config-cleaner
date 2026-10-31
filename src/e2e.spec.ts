@@ -45,7 +45,11 @@ function runCli(dir: string, args: string[] = []): RunResult {
       stderr: "",
     };
   } catch (error) {
-    const failure = error as { status?: number; stdout?: string; stderr?: string };
+    const failure = error as {
+      status?: number;
+      stdout?: string;
+      stderr?: string;
+    };
     return {
       status: failure.status ?? 1,
       stdout: failure.stdout ?? "",
@@ -130,13 +134,13 @@ describe("e2e CLI", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toBe(
-      `✔ ${join(dir, "application-prod.yml")}  removed 1 duplicate\n` +
+      `✓ ${join(dir, "application-prod.yml")}  removed 1 duplicate\n` +
         "  − my.app.maxThreads = 8\n" +
         "\n" +
-        `✔ ${join(dir, "application-test.yml")}  removed 1 duplicate\n` +
+        `✓ ${join(dir, "application-test.yml")}  removed 1 duplicate\n` +
         "  − my.app.maxThreads = 8\n" +
         "\n" +
-        "✔ Removed 2 duplicates from 2 files.\n" +
+        "✓ Removed 2 duplicates from 2 files.\n" +
         "\n" +
         `  Verify:  spring-config-cleaner --check ${dir}\n`,
     );
@@ -164,7 +168,7 @@ describe("e2e CLI", () => {
     const result = runCli(dir);
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe("✔ No duplicates found.\n");
+    expect(result.stdout).toBe("✓ No duplicates found.\n");
     expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(before["application.yml"]);
     expect(await readFile(join(dir, "application-dev.yml"), "utf8")).toBe(
       before["application-dev.yml"],

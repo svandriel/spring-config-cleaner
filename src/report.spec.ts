@@ -28,7 +28,7 @@ const errorFor = (message: string): ConfigError => ({
 describe("renderReport", () => {
   it("reports exactly this line for an empty result list", () => {
     expect(renderReport([], false)).toBe(NO_DUPLICATES_LINE);
-    expect(NO_DUPLICATES_LINE).toBe("✔ No duplicates found.\n");
+    expect(NO_DUPLICATES_LINE).toBe("✓ No duplicates found.\n");
   });
 
   it("reports exactly this line when every block is clean (no entries, no errors)", () => {
@@ -41,7 +41,10 @@ describe("renderReport", () => {
 
   it("renders one entry with the singular summary", () => {
     const results: FileResult[] = [
-      { file: "application-prod.yml", redundant: [entry("server.tomcat.max-threads", 42)] },
+      {
+        file: "application-prod.yml",
+        redundant: [entry("server.tomcat.max-threads", 42)],
+      },
     ];
     expect(renderReport(results, false)).toBe(
       "application-prod.yml\n" +
@@ -144,7 +147,11 @@ describe("renderReport", () => {
 
   it("renders an error block with a fix hint and no summary", () => {
     const results: FileResult[] = [
-      { file: "application-broken.yml", redundant: [], error: errorFor("bad yaml") },
+      {
+        file: "application-broken.yml",
+        redundant: [],
+        error: errorFor("bad yaml"),
+      },
     ];
     expect(renderReport(results, false)).toBe(
       "✖ application-broken.yml\n" +
@@ -156,7 +163,11 @@ describe("renderReport", () => {
 
   it("renders an error block identically in dry-run mode (no would-remove line)", () => {
     const results: FileResult[] = [
-      { file: "application-broken.yml", redundant: [], error: errorFor("bad yaml") },
+      {
+        file: "application-broken.yml",
+        redundant: [],
+        error: errorFor("bad yaml"),
+      },
     ];
     expect(renderReport(results, true)).toBe(renderReport(results, false));
   });
@@ -176,7 +187,11 @@ describe("renderReport", () => {
 
   it("continues rendering past an error block (errors never abort rendering)", () => {
     const results: FileResult[] = [
-      { file: "application-broken.yml", redundant: [], error: errorFor("bad yaml") },
+      {
+        file: "application-broken.yml",
+        redundant: [],
+        error: errorFor("bad yaml"),
+      },
       { file: "application-prod.yml", redundant: [entry("server.port", 8080)] },
     ];
     expect(renderReport(results, true)).toBe(

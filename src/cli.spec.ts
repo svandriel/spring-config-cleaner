@@ -63,7 +63,7 @@ describe("runCli", () => {
     silenceOutput();
     const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     expect(await runCli([await cleanFixture()])).toBe(0);
-    expect(written(log)).toBe("✔ No duplicates found.\n");
+    expect(written(log)).toBe("✓ No duplicates found.\n");
   });
 
   it("exits 1 and prints the report when duplicates exist", async () => {

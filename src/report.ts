@@ -27,7 +27,7 @@ export interface FileResult {
 }
 
 /** Report text emitted when no file yields anything to report. */
-export const NO_DUPLICATES_LINE = "✔ No duplicates found.\n";
+export const NO_DUPLICATES_LINE = "✓ No duplicates found.\n";
 
 /**
  * Render the full report for per-file results, preserving input order, without

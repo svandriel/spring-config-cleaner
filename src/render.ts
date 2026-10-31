@@ -131,7 +131,7 @@ function fixBlock(result: FileResult, style: Style): string[] | undefined {
     return undefined;
   }
   const header =
-    `${style.success("✔")} ${style.path(result.file)}  ` +
+    `${style.success("✓")} ${style.path(result.file)}  ` +
     `${style.dim("removed")} ${plural(redundant.length, "duplicate", "duplicates")}`;
   const rows = redundant.map(
     (entry) =>
@@ -228,7 +228,7 @@ function summaryLine(results: FileResult[], mode: RenderMode, style: Style): str
   }
   if (mode === "fix" && errors === 0) {
     const files = results.filter((result) => result.redundant.length > 0).length;
-    return `${style.success("✔")} Removed ${plural(duplicates, "duplicate", "duplicates")} from ${plural(files, "file", "files")}.`;
+    return `${style.success("✓")} Removed ${plural(duplicates, "duplicate", "duplicates")} from ${plural(files, "file", "files")}.`;
   }
   const files = results.length;
   const duplicateSummary = style.duplicate(
@@ -270,7 +270,7 @@ export function renderResults(results: FileResult[], options: RenderOptions): st
     ...hintLines(options.hints ?? [], style),
   ];
   if (blocks.length === 0 && summary === undefined) {
-    return `${style.success("✔")} No duplicates found.\n`;
+    return `${style.success("✓")} No duplicates found.\n`;
   }
   const sections = [...blocks.map((block) => block.join("\n"))];
   if (summary !== undefined) {
