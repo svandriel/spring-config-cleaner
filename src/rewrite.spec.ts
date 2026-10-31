@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseDocument } from "yaml";
 import type { RedundantEntry } from "./compare.ts";
+import { canonicalKey } from "./keys.ts";
 import { flattenDocument } from "./paths.ts";
 import { rewriteConfigFile } from "./rewrite.ts";
 
@@ -73,6 +74,32 @@ describe("rewriteConfigFile (structure conformance)", () => {
     ]);
     // Discriminating: the dotted key must be gone (beyond the brief's asserts).
     expect(result).not.toContain("spring.application.name:");
+  });
+  it("keeps the deep subtree on a prefix collision, shallow leaf first", () => {
+    const result = rewriteConfigFile("a.b: 1 # shallow\na:\n  b:\n    c: 2\n", [], {
+      style: "preserve",
+      structure: "nested",
+    });
+    // Documented conflict policy: the deeper subtree wins; the shallow leaf is
+    // dropped, though its comments survive (hoisted).
+    expect(flattenDocument(parseDocument(result), 0).map((e) => e.path)).toEqual(["a.b.c"]);
+    expect(result).toContain("# shallow");
+  });
+  it("keeps the deep subtree on a prefix collision, deep leaf first", () => {
+    const result = rewriteConfigFile("a:\n  b:\n    c: 2\na.b: 1\n", [], {
+      style: "preserve",
+      structure: "nested",
+    });
+    expect(flattenDocument(parseDocument(result), 0).map((e) => e.path)).toEqual(["a.b.c"]);
+  });
+  it("keeps the later spelling of a twice-spelled canonical path", () => {
+    const result = rewriteConfigFile("a.b: 1\na:\n  B: 2\n", [], {
+      style: "preserve",
+      structure: "nested",
+    });
+    const flattened = flattenDocument(parseDocument(result), 0);
+    expect(flattened.map((e) => canonicalKey(e.path))).toEqual(["a.b"]);
+    expect(flattened[0]?.value).toBe(2);
   });
 });
 

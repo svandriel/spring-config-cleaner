@@ -246,9 +246,12 @@ interface DroppedComments {
   taken: boolean;
 }
 
-/** A surviving leaf re-homed by a structure rebuild. */
+/**
+ * A surviving leaf re-homed by the structure rebuild, plus the comment lines
+ * that pool onto it.
+ */
 interface LeafRecord {
-  /** Restyled path segments (`.ts` free, from the post-restyle tree). */
+  /** One restyled segment per dotted property part. */
   segments: string[];
   /** Original yaml value node, re-homed as-is (keeps anchors and inline comments). */
   value: unknown;
@@ -263,8 +266,7 @@ interface TreeNode {
 }
 
 /**
- * The untaken ancestor lines of `chain` (" word" lines, document order), after
- * which every not-yet-taken ancestor is marked consumed.
+ * Untaken ancestor lines, after which those ancestors count as adopted.
  */
 function chainLines(chain: readonly DroppedComments[]): string[] {
   const lines = chain.flatMap((group) => (group.taken ? [] : group.lines));
@@ -331,34 +333,42 @@ function collectLeaves(
   });
 }
 
+/** Hoist a downgraded leaf's comment lines (pool plus inline on its value node). */
+function carveOutLeaf(leaf: LeafRecord, orphans: string[]): void {
+  orphans.push(...new Set([...leaf.lines, ...commentLines([leaf.value])]));
+}
+
 /**
- * Insert `entry` into the `nested` rebuild tree. A longer path at the same
- * prefix (`a.b: 1` next to `a.b.c: 2`) makes the subtree win; the shallow
- * leaf's comments are downgraded into `orphans`.
+ * Insert `entry` into the nested rebuild tree. Conflict policy for a prefix
+ * collision (`a.b: 1` next to `a.b.c: 2`): the deeper subtree wins, the shallow
+ * leaf's VALUE is dropped and its comments are downgraded into `orphans` —
+ * symmetric in both insertion orders via the mid-descent downgrade.
  */
 function insertLeaf(tree: TreeNode, entry: LeafRecord, orphans: string[]): void {
   const leafKey = entry.segments[entry.segments.length - 1];
   if (leafKey === undefined) {
-    orphans.push(...entry.lines);
+    carveOutLeaf(entry, orphans);
     return;
   }
   const parent = entry.segments.slice(0, -1).reduce<TreeNode>((node, segment) => {
     const next: TreeNode = node.children.get(segment) ?? { children: new Map() };
+    if (next.leaf !== undefined) {
+      // Descending past a leaf to grow deeper children: subtree wins.
+      carveOutLeaf(next.leaf, orphans);
+      delete next.leaf;
+    }
     node.children.set(segment, next);
     return next;
   }, tree);
   const node: TreeNode = parent.children.get(leafKey) ?? { children: new Map() };
   if (node.children.size > 0) {
-    // The deeper subtree wins; the shallow leaf is downgraded and its
-    // comments are hoisted to `orphans`.
-    orphans.push(...entry.lines);
+    carveOutLeaf(entry, orphans);
     return;
   }
   node.leaf = entry;
   parent.children.set(leafKey, node);
 }
 
-/** Build the nested rebuild tree from flatten-order leaves. */
 function buildTree(leaves: LeafRecord[], orphans: string[]): TreeNode {
   const tree: TreeNode = { children: new Map() };
   leaves.forEach((leaf) => {
@@ -367,7 +377,6 @@ function buildTree(leaves: LeafRecord[], orphans: string[]): TreeNode {
   return tree;
 }
 
-/** Attach pooled `lines` in front of `node`'s own (empty) comment block. */
 function setLeadingComments(node: CommentCarrier, lines: string[]): void {
   const merged = mergeComments(lines, undefined);
   if (merged !== undefined) {
@@ -375,7 +384,6 @@ function setLeadingComments(node: CommentCarrier, lines: string[]): void {
   }
 }
 
-/** Root map of the `dotted` rebuild: one flat dotted key per surviving leaf. */
 function buildDotted(leaves: LeafRecord[]): YAMLMap {
   const root = new YAMLMap();
   leaves.forEach((leaf) => {
@@ -386,13 +394,18 @@ function buildDotted(leaves: LeafRecord[]): YAMLMap {
   return root;
 }
 
-/** Root map of the `nested` rebuild: intermediate maps per interior segment. */
-function buildNested(tree: TreeNode): YAMLMap {
+function buildNested(tree: TreeNode, orphans: string[]): YAMLMap {
   const map = new YAMLMap();
   tree.children.forEach((child, segment) => {
     const keyNode = new Scalar(segment);
+    if (child.leaf !== undefined && child.children.size > 0) {
+      // Defensive consistency with insertLeaf's downgrade (deeper subtree
+      // wins); unreachable through buildTree but cheap to guarantee.
+      carveOutLeaf(child.leaf, orphans);
+      delete child.leaf;
+    }
     if (child.leaf === undefined) {
-      map.items.push(new Pair(keyNode, buildNested(child)));
+      map.items.push(new Pair(keyNode, buildNested(child, orphans)));
       return;
     }
     setLeadingComments(keyNode, child.leaf.lines);
@@ -456,7 +469,7 @@ export function rewriteConfigFile(
   const rebuilt =
     options.structure === "dotted"
       ? buildDotted([...leaves.values()])
-      : buildNested(buildTree([...leaves.values()], orphans));
+      : buildNested(buildTree([...leaves.values()], orphans), orphans);
   setLeadingComments(rebuilt, orphans);
   // Hand-built map nodes are fresh and well-formed but not Parsed-typed (no
   // parsed ranges); assignment needs one trust-us cast after a structural fit.
