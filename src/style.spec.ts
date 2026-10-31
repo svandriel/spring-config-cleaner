@@ -1,0 +1,21 @@
+import { describe, expect, it } from "vitest";
+import { createStyle } from "./style.ts";
+
+describe("createStyle", () => {
+  it("maps every semantic token to its ANSI style", () => {
+    const style = createStyle(true);
+    expect(style.path("a.yml")).toBe("\u001b[36ma.yml\u001b[39m");
+    expect(style.command("cmd")).toBe("\u001b[36mcmd\u001b[39m");
+    expect(style.position("1:2")).toBe("\u001b[2m1:2\u001b[22m");
+    expect(style.dim("x")).toBe("\u001b[2mx\u001b[22m");
+    expect(style.error("x")).toBe("\u001b[31mx\u001b[39m");
+    expect(style.duplicate("x")).toBe("\u001b[33mx\u001b[39m");
+    expect(style.success("x")).toBe("\u001b[32mx\u001b[39m");
+    expect(style.key("x")).toBe("\u001b[1mx\u001b[22m");
+  });
+  it("is an identity mapping when disabled", () => {
+    const style = createStyle(false);
+    expect(style.path("a.yml")).toBe("a.yml");
+    expect(style.error("boom")).toBe("boom");
+  });
+});
