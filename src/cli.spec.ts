@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -33,10 +33,24 @@ const cleanFixture = () => fixture({ "application.yml": BASE });
 const duplicateFixture = () =>
   fixture({ "application.yml": BASE, "application-prod.yml": PROFILE });
 
+/** Duplicate fixture in a directory whose name needs shell quoting. */
+async function spacedFixture(): Promise<string> {
+  const root = await fixture({});
+  const dir = join(root, "my config");
+  await mkdir(dir);
+  await writeFile(join(dir, "application.yml"), BASE);
+  await writeFile(join(dir, "application-prod.yml"), PROFILE);
+  return dir;
+}
+
 function silenceOutput(): void {
   vi.spyOn(process.stdout, "write").mockImplementation(() => true);
   vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-  vi.spyOn(console, "error").mockImplementation(() => {});
+}
+
+/** All text written to a mocked stream, in order. */
+function written(spy: { mock: { calls: unknown[][] } }): string {
+  return spy.mock.calls.map((call) => String(call[0])).join("");
 }
 
 describe("runCli", () => {
@@ -45,12 +59,37 @@ describe("runCli", () => {
     expect(await runCli([await cleanFixture()])).toBe(0);
   });
 
+  it("prints only the clean line (no hints) for a clean directory", async () => {
+    silenceOutput();
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    expect(await runCli([await cleanFixture()])).toBe(0);
+    expect(written(log)).toBe("✔ No duplicates found.\n");
+  });
+
   it("exits 1 and prints the report when duplicates exist", async () => {
     silenceOutput();
     const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     expect(await runCli([await duplicateFixture()])).toBe(1);
     expect(log).toHaveBeenCalledOnce();
     expect(String(log.mock.calls[0]?.[0])).toContain("baseKey");
+  });
+
+  it("adds actionable check-mode hints for duplicates", async () => {
+    silenceOutput();
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const dir = await duplicateFixture();
+    expect(await runCli([dir])).toBe(1);
+    const out = written(log);
+    expect(out).toContain(`Remove them:    spring-config-cleaner --fix ${dir}`);
+    expect(out).toContain(`Preview first:  spring-config-cleaner --fix --dry-run ${dir}`);
+  });
+
+  it("quotes a directory with spaces in hint commands", async () => {
+    silenceOutput();
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const dir = await spacedFixture();
+    expect(await runCli([dir])).toBe(1);
+    expect(written(log)).toContain(`spring-config-cleaner --fix '${dir}'`);
   });
 
   it("rejects --check and --fix together", async () => {
@@ -66,11 +105,21 @@ describe("runCli", () => {
     expect(await readFile(join(dir, "application-prod.yml"), "utf8")).toBe(PROFILE);
   });
 
-  it("fails with a message when --dry-run is used without --fix", async () => {
-    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("adds the --help hint to commander usage errors on stderr", async () => {
+    silenceOutput();
+    const err = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    expect(await runCli(["--nope"])).not.toBe(0);
+    expect(written(err)).toContain("Run spring-config-cleaner --help for usage.");
+  });
+
+  it("fails with a styled message and hint when --dry-run is used without --fix", async () => {
+    silenceOutput();
+    const err = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     const dir = await duplicateFixture();
     expect(await runCli([dir, "--dry-run"])).toBe(1);
-    expect(err.mock.calls.some((call) => String(call[0]).includes("--fix"))).toBe(true);
+    const text = written(err);
+    expect(text).toContain("--dry-run requires --fix");
+    expect(text).toContain("--help");
   });
 
   it("fixes duplicates on disk and exits 0", async () => {
@@ -83,11 +132,21 @@ describe("runCli", () => {
     expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(BASE);
   });
 
-  it("--dry-run with --fix leaves the disk identical", async () => {
+  it("hints at verification after a fix", async () => {
     silenceOutput();
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const dir = await duplicateFixture();
-    expect(await runCli([dir, "--fix", "--dry-run"])).toBe(0);
+    expect(await runCli([dir, "--fix"])).toBe(0);
+    expect(written(log)).toContain(`Verify:  spring-config-cleaner --check ${dir}`);
+  });
+
+  it("--dry-run with --fix leaves the disk identical and hints at applying", async () => {
+    silenceOutput();
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const dir = await duplicateFixture();
+    expect(await runCli([dir, "--fix", "--dry-run", "--style", "snake"])).toBe(0);
     expect(await readFile(join(dir, "application-prod.yml"), "utf8")).toBe(PROFILE);
+    expect(written(log)).toContain(`Apply:  spring-config-cleaner --fix --style snake ${dir}`);
   });
 
   it("fails on files whose contents already report duplicates but fail to parse", async () => {

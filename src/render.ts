@@ -215,7 +215,7 @@ function errorHint(result: FileResult, style: Style): string | undefined {
       : `${INDENT}Fix the YAML syntax at ${style.path(result.file)}${style.position(`:${position.line}:${position.column}`)}.`;
   }
   if (isDiscoveryError(error)) {
-    return `${INDENT}Run spring-config-cleaner --help for usage.`;
+    return `${INDENT}Run ${style.command("spring-config-cleaner --help")} for usage.`;
   }
   return undefined;
 }
