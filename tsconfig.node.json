@@ -2,7 +2,7 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "tsBuildInfoFile": ".tsbuildinfo/node.tsbuildinfo",
+    "tsBuildInfoFile": "node_modules/.tsbuildinfo/node.tsbuildinfo",
     "types": ["node"]
   },
   "include": ["vitest.config.ts", "vitest.global-setup.ts"]
