@@ -69,10 +69,10 @@
   },
   "lint-staged": {
     "*.ts": [
-      "biome check"
+      "biome check --write"
     ],
     "*.json": [
-      "biome check"
+      "biome check --write"
     ],
     "*.md": [
       "markdownlint-cli2"
