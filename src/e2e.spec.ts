@@ -55,7 +55,7 @@ function runCli(dir: string, args: string[] = []): RunResult {
 }
 
 function pathsOf(source: string): string[] {
-  return flattenDocument(parseDocument(source), 0).map((entry) => entry.path);
+  return flattenDocument(parseDocument(source), 0, source).map((entry) => entry.path);
 }
 
 describe("e2e CLI", () => {

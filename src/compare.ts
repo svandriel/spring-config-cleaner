@@ -16,11 +16,21 @@ import { documentActivation } from "./configfile.ts";
 import { canonicalKey } from "./keys.ts";
 import type { FlatEntry } from "./paths.ts";
 import { flattenDocument } from "./paths.ts";
+import type { SourcePosition } from "./position.ts";
 import { valuesEqual } from "./values.ts";
+
+/** Where the base config already defines a redundant property. */
+export interface BaseLocation {
+  /** Path of the base config file. */
+  file: string;
+  /** Span of the base entry. */
+  position: SourcePosition;
+}
 
 /**
  * A redundant profile-file entry: the profile side's path, style-preserved
- * words, leaf value and the index of the profile document it was found in.
+ * words, leaf value, the index of the profile document it was found in, its
+ * own span, and where the base file already defines the same value.
  */
 export interface RedundantEntry {
   /** Dotted property path as written in the profile file. */
@@ -31,6 +41,10 @@ export interface RedundantEntry {
   value: unknown;
   /** Index of the source document within the profile file. */
   documentIndex: number;
+  /** Span from the profile key through its value. */
+  position: SourcePosition;
+  /** The base entry this profile entry duplicates. */
+  base: BaseLocation;
 }
 
 /** The outcome of comparing a profile file against the base document. */
@@ -40,7 +54,6 @@ export interface ComparisonResult {
   /** Number of overrides: same canonical path, different value. */
   overrides: number;
 }
-
 /** Documents of `file` whose own activation condition matches `profileName`. */
 function matchingDocuments(
   file: ConfigFile,
@@ -78,6 +91,7 @@ function scanStep(
   effective: Map<string, FlatEntry>,
   acc: ScanAccumulator,
   entry: FlatEntry,
+  baseFile: string,
 ): ScanAccumulator {
   const canonical = canonicalKey(entry.path);
   if (acc.seen.has(canonical)) {
@@ -94,6 +108,8 @@ function scanStep(
       words: entry.words,
       value: entry.value,
       documentIndex: entry.documentIndex,
+      position: entry.position,
+      base: { file: baseFile, position: baseEntry.position },
     });
   } else {
     acc.overrides++;
@@ -105,10 +121,12 @@ function scanStep(
 function compareDocument(
   document: ConfigDocument,
   documentIndex: number,
+  source: string,
   effective: Map<string, FlatEntry>,
+  baseFile: string,
 ): DocumentComparison {
-  const { redundant, overrides } = flattenDocument(document.doc, documentIndex).reduce(
-    (acc, entry) => scanStep(effective, acc, entry),
+  const { redundant, overrides } = flattenDocument(document.doc, documentIndex, source).reduce(
+    (acc, entry) => scanStep(effective, acc, entry, baseFile),
     { seen: new Set<string>(), redundant: [] as RedundantEntry[], overrides: 0 },
   );
   return { redundant, overrides };
@@ -141,11 +159,13 @@ export function compareProfileFile(
   // Effective map over the base document; the Map constructor's
   // later-pair-wins behavior gives the required later-wins tie rule.
   const effective = new Map(
-    flattenDocument(baseDocument.doc, 0).map((entry) => [canonicalKey(entry.path), entry] as const),
+    flattenDocument(baseDocument.doc, 0, base.source).map(
+      (entry) => [canonicalKey(entry.path), entry] as const,
+    ),
   );
 
   const comparisons = matchingDocuments(profile, profileName).map(([documentIndex, document]) =>
-    compareDocument(document, documentIndex, effective),
+    compareDocument(document, documentIndex, profile.source, effective, base.path),
   );
   return {
     redundant: comparisons.flatMap((comparison) => comparison.redundant),

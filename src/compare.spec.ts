@@ -33,4 +33,14 @@ describe("compareProfileFile", () => {
     const base = parseConfigFile("application.yml", "v: 1\n");
     expect(compareProfileFile(base, profile, "prod").redundant).toEqual([]);
   });
+  it("records where the duplicate and the base value live", () => {
+    const base = parseConfigFile("application.yml", "my:\n  app:\n    maxThreads: 8\n");
+    const profile = parseConfigFile("application-prod.yml", "my.app.maxThreads: 8\n");
+    const [entry] = compareProfileFile(base, profile, "prod").redundant;
+    expect(entry?.position).toEqual({ line: 1, column: 1, endLine: 1, endColumn: 21 });
+    expect(entry?.base).toEqual({
+      file: "application.yml",
+      position: { line: 3, column: 5, endLine: 3, endColumn: 18 },
+    });
+  });
 });

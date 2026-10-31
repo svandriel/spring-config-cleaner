@@ -5,11 +5,10 @@
  * (`ConfigError`) are never rethrown — each maps to a single errored
  * `FileResult` so callers always get a renderable `CheckResult`.
  */
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { compareProfileFile, type RedundantEntry } from "./compare.ts";
 import { ConfigError, type ConfigFile } from "./configfile.ts";
-import type { DiscoveryResult } from "./discovery.ts";
-import { discoverConfigs } from "./discovery.ts";
+import { DiscoveryError, type DiscoveryResult, discoverConfigs } from "./discovery.ts";
 import { extractProfileName, type KeyStyle } from "./keys.ts";
 import type { FileResult } from "./report.ts";
 import { rewriteConfigFile, type Structure } from "./rewrite.ts";
@@ -53,12 +52,24 @@ export type FixResult = CheckResult;
 
 /** Single errored `FileResult` for a check/fix that failed before comparing. */
 function errorResult(file: string, error: unknown): CheckResult {
+  const failure = error instanceof Error ? error : new Error(String(error));
+  const source = (error as { source?: unknown }).source;
   return {
     files: [
-      { file, redundant: [], error: error instanceof Error ? error : new Error(String(error)) },
+      {
+        file,
+        redundant: [],
+        error: failure,
+        ...(typeof source === "string" ? { source } : {}),
+      },
     ],
     duplicates: 0,
   };
+}
+
+/** Path a pre-comparison failure belongs to: the failing file or the directory. */
+function errorPath(fallback: string, error: unknown): string {
+  return error instanceof ConfigError || error instanceof DiscoveryError ? error.path : fallback;
 }
 
 /**
@@ -75,7 +86,7 @@ async function analyzeConfigs(
   try {
     discovered = await discoverConfigs(dir);
   } catch (err) {
-    return errorResult(err instanceof ConfigError ? err.path : dir, err);
+    return errorResult(errorPath(dir, err), err);
   }
   const { base, profiles } = discovered;
 
@@ -83,18 +94,19 @@ async function analyzeConfigs(
     profiles.map(async (profile): Promise<FileResult> => {
       const name = extractProfileName(profile.path);
       if (name === null) {
-        return { file: profile.path, redundant: [] };
+        return { file: profile.path, redundant: [], source: profile.source };
       }
       try {
         const { redundant } = compareProfileFile(base, profile, name);
         if (apply !== undefined && redundant.length > 0) {
           await apply(profile, redundant);
         }
-        return { file: profile.path, redundant };
+        return { file: profile.path, redundant, source: profile.source };
       } catch (err) {
         return {
           file: err instanceof ConfigError ? err.path : profile.path,
           redundant: [],
+          source: profile.source,
           error: err instanceof Error ? err : new Error(String(err)),
         };
       }
@@ -127,8 +139,7 @@ export async function fixConfigs(dir: string, options: FixOptions): Promise<FixR
     if (options.dryRun === true) {
       return;
     }
-    const source = await readFile(profile.path, "utf8");
-    const rewritten = rewriteConfigFile(source, redundant, {
+    const rewritten = rewriteConfigFile(profile.source, redundant, {
       style: options.style,
       structure: options.structure,
     });

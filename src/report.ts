@@ -22,6 +22,8 @@ export interface FileResult {
   file: string;
   /** Redundant entries found in the file, in report order. */
   redundant: RedundantEntry[];
+  /** Source text of the file as read, used to render diagnostic frames. */
+  source?: string;
   /** Set when the file could not be parsed or read; `undefined` otherwise. */
   error?: FileError;
 }

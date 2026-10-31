@@ -39,4 +39,30 @@ describe("parseConfigFile", () => {
       expect((error as ConfigError).path).toBe("application-broken.yml");
     }
   });
+  it("carries the parse position and keeps the path out of the message", () => {
+    try {
+      parseConfigFile("application-broken.yml", "a: [1,\n");
+      expect.unreachable("should throw");
+    } catch (error) {
+      const broke = error as ConfigError;
+      expect(broke.message).toContain("Flow sequence");
+      expect(broke.message).not.toContain("application-broken.yml");
+      expect(broke.message).not.toContain("at line");
+      expect(broke.line).toBe(2);
+      expect(broke.column).toBe(1);
+      expect(broke.source).toBe("a: [1,\n");
+    }
+  });
+  it("points multi-document errors at the second document", () => {
+    try {
+      parseConfigFile("application.yml", "a: 1\n---\nb: 2\n");
+      expect.unreachable("should throw");
+    } catch (error) {
+      expect((error as ConfigError).line).toBe(2);
+      expect((error as ConfigError).column).toBe(1);
+    }
+  });
+  it("keeps the source text on the parsed file", () => {
+    expect(parseConfigFile("application.yml", "a: 1\n").source).toBe("a: 1\n");
+  });
 });

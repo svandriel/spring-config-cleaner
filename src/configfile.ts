@@ -12,15 +12,26 @@
  */
 import type { Document, DocumentOptions, ParseOptions, SchemaOptions } from "yaml";
 import { isCollection, isScalar, parseAllDocuments } from "yaml";
+import { lineIndex, type SourcePosition } from "./position.ts";
 
 /** Failure while parsing a specific config file. `path` is the file path. */
 export class ConfigError extends Error {
   path: string;
+  line?: number;
+  column?: number;
+  source?: string;
 
-  constructor(path: string, message: string) {
-    super(`${path}: ${message}`);
+  constructor(path: string, message: string, position?: SourcePosition, source?: string) {
+    super(message);
     this.path = path;
     this.name = "ConfigError";
+    if (position !== undefined) {
+      this.line = position.line;
+      this.column = position.column;
+    }
+    if (source !== undefined) {
+      this.source = source;
+    }
   }
 }
 
@@ -31,9 +42,10 @@ export interface ConfigDocument {
   activation: unknown;
 }
 
-/** A parsed config file: its path and the single document it holds. */
+/** A parsed config file: its path, source text, and the single document it holds. */
 export interface ConfigFile {
   path: string;
+  source: string;
   documents: ConfigDocument[];
 }
 
@@ -76,7 +88,15 @@ export function parseConfigFile(path: string, source: string): ConfigFile {
   } as ParseOptions & DocumentOptions & SchemaOptions);
 
   if (docs.length !== 1) {
-    throw new ConfigError(path, `expected a single YAML document, found ${docs.length}`);
+    const second = docs[1];
+    const start = second?.range?.[0];
+    const position = start === undefined ? undefined : lineIndex(source).position(start, start + 1);
+    throw new ConfigError(
+      path,
+      `expected a single YAML document, found ${docs.length}`,
+      position,
+      source,
+    );
   }
 
   const doc = docs[0];
@@ -85,12 +105,19 @@ export function parseConfigFile(path: string, source: string): ConfigFile {
   }
   const parseError = doc.errors[0];
   if (parseError !== undefined) {
-    throw new ConfigError(path, parseError.message);
+    const message = parseError.message.replace(/ at line \d+, column \d+:[\s\S]*$/u, "").trim();
+    const start = parseError.linePos?.[0];
+    const position =
+      start === undefined
+        ? undefined
+        : { line: start.line, column: start.col, endLine: start.line, endColumn: start.col + 1 };
+    throw new ConfigError(path, message, position, source);
   }
 
   const activation = documentActivation(doc);
   return {
     path,
+    source,
     documents: [{ doc, activation }],
   };
 }

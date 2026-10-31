@@ -18,7 +18,7 @@ export class DiscoveryError extends Error {
   path: string;
 
   constructor(path: string, message: string) {
-    super(`${path}: ${message}`);
+    super(message);
     this.path = path;
     this.name = "DiscoveryError";
   }
