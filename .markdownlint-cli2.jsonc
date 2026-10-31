@@ -1,0 +1,13 @@
+{
+  "config": { "MD013": { "line_length": 100 } },
+  "globs": ["**/*.md"],
+  "ignores": [
+    "node_modules/**",
+    "dist/**",
+    "coverage/**",
+    "docs/superpowers/**",
+    ".superpowers/**",
+    ".husky/_/**",
+    "AGENTS.md"
+  ]
+}

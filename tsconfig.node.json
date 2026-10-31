@@ -5,5 +5,5 @@
     "tsBuildInfoFile": ".tsbuildinfo/node.tsbuildinfo",
     "types": ["node"]
   },
-  "include": ["vitest.config.ts"]
+  "include": ["vitest.config.ts", "vitest.global-setup.ts"]
 }

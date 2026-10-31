@@ -7,7 +7,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "tsBuildInfoFile": ".tsbuildinfo/app.tsbuildinfo",
-    "types": []
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.spec.ts"]

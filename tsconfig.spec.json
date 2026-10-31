@@ -3,7 +3,7 @@
   "compilerOptions": {
     "noEmit": true,
     "tsBuildInfoFile": ".tsbuildinfo/spec.tsbuildinfo",
-    "types": []
+    "types": ["node"]
   },
   "include": ["src/**/*.spec.ts", "src/**/*.test.ts", "src/**/__tests__/**/*.ts"]
 }

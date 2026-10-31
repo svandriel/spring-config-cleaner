@@ -1,0 +1,7 @@
+# base configuration
+spring:
+  application:
+    name: demo
+my:
+  app:
+    maxThreads: 8

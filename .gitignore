@@ -6,3 +6,7 @@ coverage
 .env
 .env.*
 .DS_Store
+
+# superpowers process documents — design docs stay local, never committed
+docs/superpowers
+.superpowers
