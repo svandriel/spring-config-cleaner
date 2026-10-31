@@ -8,7 +8,13 @@
  * reportable the fixed "No duplicates found." line is emitted.
  */
 import type { RedundantEntry } from "./compare.ts";
-import type { ConfigError } from "./configfile.ts";
+
+/**
+ * Failure a file block can carry — a `ConfigError` (broken parse) or a
+ * `DiscoveryError` (discovery aborted before comparison). Rendering only
+ * needs `error.message`; the offending path is carried by `file`.
+ */
+export type FileError = Error;
 
 /** Check/fix outcome for one profile config file. */
 export interface FileResult {
@@ -17,7 +23,7 @@ export interface FileResult {
   /** Redundant entries found in the file, in report order. */
   redundant: RedundantEntry[];
   /** Set when the file could not be parsed or read; `undefined` otherwise. */
-  error?: ConfigError;
+  error?: FileError;
 }
 
 /** Report text emitted when no file yields anything to report. */
