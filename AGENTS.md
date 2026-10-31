@@ -28,9 +28,13 @@ CI order is required: `pnpm typecheck` → `pnpm lint` → `pnpm test` → `pnpm
 - Project layout: `tsconfig.app.json` compiles `src` → `dist` (excludes `*.spec.ts`); `tsconfig.spec.json` typechecks tests (noEmit); `tsconfig.node.json` covers `vitest.config.ts`. Never add `src` test files to the app project.
 - Only `dist/` is published (`files` field); source imports in `package.json` resolve to `dist`, so verify `pnpm build` passes before publishing anything.
 
-## Formatting (Biome 2.6, enforced)
+## Formatting & style (Biome 2.6, enforced)
 
 Double quotes, semicolons, 100-wide, 2-space indent, trailing commas `all`. Biome's `vcs` setting means ignored paths (`dist`, `coverage`) are skipped automatically.
+
+## Iteration style
+
+Avoid `for`/`while` loops whenever possible — prefer functional iteration (`map`, `reduce`, `filter`, `find`, `flatMap`, `some`/`every`, etc.). Use a loop only when functional form genuinely doesn't fit (e.g. early-exit-heavy parsers where a loop is materially clearer).
 
 ## Workflow rules
 
