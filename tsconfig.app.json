@@ -6,7 +6,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "tsBuildInfoFile": ".tsbuildinfo/app.tsbuildinfo",
+    "tsBuildInfoFile": "node_modules/.tsbuildinfo/app.tsbuildinfo",
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
