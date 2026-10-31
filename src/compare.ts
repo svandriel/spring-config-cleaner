@@ -50,6 +50,69 @@ function matchingDocuments(
     .filter(([, document]) => gateMatches(documentGate(document.doc), profileName));
 }
 
+/** Document-level comparison outcome, combined across the profile's documents. */
+interface DocumentComparison {
+  /** Redundant entries of one profile document, in flatten order. */
+  redundant: RedundantEntry[];
+  /** Overrides found in one profile document. */
+  overrides: number;
+}
+
+/** Per-document scan state: already-resolved canonical paths plus the results. */
+interface ScanAccumulator {
+  /** Canonical paths resolved so far in this profile document. */
+  seen: Set<string>;
+  /** Redundant entries accumulated so far. */
+  redundant: RedundantEntry[];
+  /** Overrides accumulated so far. */
+  overrides: number;
+}
+
+/**
+ * Resolve one flattened profile entry against the effective map; first
+ * occurrence per canonical path wins. Canonical paths absent from the base map
+ * are ignored and never added to `seen`, so every occurrence re-evaluates.
+ */
+function scanStep(
+  effective: Map<string, FlatEntry>,
+  acc: ScanAccumulator,
+  entry: FlatEntry,
+): ScanAccumulator {
+  const canonical = canonicalKey(entry.path);
+  if (acc.seen.has(canonical)) {
+    return acc;
+  }
+  const baseEntry = effective.get(canonical);
+  if (baseEntry === undefined) {
+    return acc;
+  }
+  acc.seen.add(canonical);
+  if (valuesEqual(entry.value, baseEntry.value)) {
+    acc.redundant.push({
+      path: entry.path,
+      words: entry.words,
+      value: entry.value,
+      documentIndex: entry.documentIndex,
+    });
+  } else {
+    acc.overrides++;
+  }
+  return acc;
+}
+
+/** Compare one profile document against the effective map, first wins per canonical path. */
+function compareDocument(
+  document: ConfigDocument,
+  documentIndex: number,
+  effective: Map<string, FlatEntry>,
+): DocumentComparison {
+  const { redundant, overrides } = flattenDocument(document.doc, documentIndex).reduce(
+    (acc, entry) => scanStep(effective, acc, entry),
+    { seen: new Set<string>(), redundant: [] as RedundantEntry[], overrides: 0 },
+  );
+  return { redundant, overrides };
+}
+
 /**
  * Compare `profile` against the single document of the `base` config file for
  * `profileName`. When the base document's gate does not match `profileName`,
@@ -70,37 +133,17 @@ export function compareProfileFile(
     return { redundant: [], overrides: 0 };
   }
 
-  // Effective map over the base document (later-wins on canonical-path ties).
-  const effective = new Map<string, FlatEntry>();
-  for (const entry of flattenDocument(baseDocument.doc, 0)) {
-    effective.set(canonicalKey(entry.path), entry);
-  }
+  // Effective map over the base document; the Map constructor's
+  // later-pair-wins behavior gives the required later-wins tie rule.
+  const effective = new Map(
+    flattenDocument(baseDocument.doc, 0).map((entry) => [canonicalKey(entry.path), entry] as const),
+  );
 
-  const redundant: RedundantEntry[] = [];
-  let overrides = 0;
-  for (const [documentIndex, document] of matchingDocuments(profile, profileName)) {
-    const seen = new Set<string>();
-    for (const entry of flattenDocument(document.doc, documentIndex)) {
-      const canonical = canonicalKey(entry.path);
-      if (seen.has(canonical)) {
-        continue;
-      }
-      const baseEntry = effective.get(canonical);
-      if (baseEntry === undefined) {
-        continue;
-      }
-      seen.add(canonical);
-      if (valuesEqual(entry.value, baseEntry.value)) {
-        redundant.push({
-          path: entry.path,
-          words: entry.words,
-          value: entry.value,
-          documentIndex,
-        });
-      } else {
-        overrides++;
-      }
-    }
-  }
-  return { redundant, overrides };
+  const comparisons = matchingDocuments(profile, profileName).map(([documentIndex, document]) =>
+    compareDocument(document, documentIndex, effective),
+  );
+  return {
+    redundant: comparisons.flatMap((comparison) => comparison.redundant),
+    overrides: comparisons.reduce((count, comparison) => count + comparison.overrides, 0),
+  };
 }
