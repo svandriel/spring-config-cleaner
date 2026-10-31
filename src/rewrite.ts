@@ -6,14 +6,18 @@
  * line and key spelling survives round-tripping. Pruning removes only
  * mappings this rewrite emptied (source-empty mappings survive) and keeps
  * comment-carrying ones as empty mappings; surviving keys may be restyled
- * via `renderSegment`. Structure is preserved: nested mappings stay
- * nested and dotted keys stay dotted.
+ * via `renderSegment`. `structure: "dotted"` re-emits every surviving leaf as
+ * an explicit dotted key (nested maps collapse) and `"nested"` collapses
+ * dotted keys into nested maps; both rebuild the tree from flatten-order
+ * leaves, reusing original value nodes (inline comments, anchors and tags
+ * survive) and carrying dropped ancestors' comments onto the first leaf below
+ * them.
  */
-import { isMap, isScalar, type Pair, parseDocument, type YAMLMap } from "yaml";
+import { isMap, isScalar, Pair, parseDocument, Scalar, YAMLMap } from "yaml";
 import type { RedundantEntry } from "./compare.ts";
 import { canonicalKey, type KeyStyle, renderSegment, splitWords } from "./keys.ts";
 
-/** Layout a rewritten document can be forced into. Only `preserve` is active for now. */
+/** Layout a rewritten document can be forced into. */
 export type Structure = "preserve" | "nested" | "dotted";
 
 /** Options for `rewriteConfigFile`: key restyle and structural layout. */
@@ -232,6 +236,172 @@ function restyleMap(map: YAMLMap, style: Exclude<KeyStyle, "preserve">): void {
 }
 
 /**
+ * A comment block owned by a node the structure rebuild drops (an ancestor of
+ * the re-homed leaves). Its lines attach to the FIRST surviving leaf below it
+ * (flatten order), so the text survives once and is never duplicated.
+ */
+interface DroppedComments {
+  lines: string[];
+  /** Set once a leaf has adopted the lines. */
+  taken: boolean;
+}
+
+/** A surviving leaf re-homed by a structure rebuild. */
+interface LeafRecord {
+  /** Restyled path segments (`.ts` free, from the post-restyle tree). */
+  segments: string[];
+  /** Original yaml value node, re-homed as-is (keeps anchors and inline comments). */
+  value: unknown;
+  /** Comment lines merged in front of the re-homed key, document order. */
+  lines: string[];
+}
+
+/** Intermediate tree node for the `nested` rebuild. */
+interface TreeNode {
+  leaf?: LeafRecord;
+  children: Map<string, TreeNode>;
+}
+
+/**
+ * The untaken ancestor lines of `chain` (" word" lines, document order), after
+ * which every not-yet-taken ancestor is marked consumed.
+ */
+function chainLines(chain: readonly DroppedComments[]): string[] {
+  const lines = chain.flatMap((group) => (group.taken ? [] : group.lines));
+  chain.forEach((group) => {
+    group.taken = true;
+  });
+  return lines;
+}
+
+/**
+ * Collect flatten-order leaves of `map` (removals, pruning and restyling
+ * already applied) into `leaves`. Dot-transparent matching mirrors the
+ * comparison stage: a dotted key contributes all of its segments. Comments of
+ * dropped ancestors ride along their subtree and attach to the first leaf
+ * reached. Comment-carrying empty mappings cannot be re-homed; their lines
+ * land in `orphans` (hoisted to the file head).
+ */
+function collectLeaves(
+  map: YAMLMap,
+  prefixSegments: string[],
+  chain: readonly DroppedComments[],
+  leaves: Map<string, LeafRecord>,
+  orphans: string[],
+): void {
+  map.items.forEach((pair) => {
+    const key = keyOf(pair);
+    if (key === undefined) {
+      orphans.push(...commentLines([pair.key, pair.value]));
+      return;
+    }
+    const segments = [...prefixSegments, ...key.split(".")];
+    const value = pair.value;
+    if (isMap(value)) {
+      if (value.items.length === 0) {
+        orphans.push(...commentLines([pair.key, value]));
+        return;
+      }
+      collectLeaves(
+        value,
+        segments,
+        [...chain, { lines: commentLines([pair.key, value]), taken: false }],
+        leaves,
+        orphans,
+      );
+      return;
+    }
+    const canonical = canonicalKey(segments.join("."));
+    // The pool keeps key comments and pre-value comments; an inline trailing
+    // comment lives on the reused value node and stays where it was.
+    const lines = [
+      ...chainLines(chain),
+      ...commentLines([pair.key]),
+      ...(asCarrier(value)?.commentBefore?.split("\n") ?? []),
+    ];
+    const losing = leaves.get(canonical);
+    leaves.set(canonical, {
+      segments,
+      value,
+      // Later-wins tie rule for a canonical path spelled twice (the comparison
+      // stage uses the same rule); the superseded leaf's lines merge first so
+      // no comment text is lost.
+      lines: losing === undefined ? lines : [...losing.lines, ...lines],
+    });
+  });
+}
+
+/**
+ * Insert `entry` into the `nested` rebuild tree. A longer path at the same
+ * prefix (`a.b: 1` next to `a.b.c: 2`) makes the subtree win; the shallow
+ * leaf's comments are downgraded into `orphans`.
+ */
+function insertLeaf(tree: TreeNode, entry: LeafRecord, orphans: string[]): void {
+  const leafKey = entry.segments[entry.segments.length - 1];
+  if (leafKey === undefined) {
+    orphans.push(...entry.lines);
+    return;
+  }
+  const parent = entry.segments.slice(0, -1).reduce<TreeNode>((node, segment) => {
+    const next: TreeNode = node.children.get(segment) ?? { children: new Map() };
+    node.children.set(segment, next);
+    return next;
+  }, tree);
+  const node: TreeNode = parent.children.get(leafKey) ?? { children: new Map() };
+  if (node.children.size > 0) {
+    // The deeper subtree wins; the shallow leaf is downgraded and its
+    // comments are hoisted to `orphans`.
+    orphans.push(...entry.lines);
+    return;
+  }
+  node.leaf = entry;
+  parent.children.set(leafKey, node);
+}
+
+/** Build the nested rebuild tree from flatten-order leaves. */
+function buildTree(leaves: LeafRecord[], orphans: string[]): TreeNode {
+  const tree: TreeNode = { children: new Map() };
+  leaves.forEach((leaf) => {
+    insertLeaf(tree, leaf, orphans);
+  });
+  return tree;
+}
+
+/** Attach pooled `lines` in front of `node`'s own (empty) comment block. */
+function setLeadingComments(node: CommentCarrier, lines: string[]): void {
+  const merged = mergeComments(lines, undefined);
+  if (merged !== undefined) {
+    node.commentBefore = merged;
+  }
+}
+
+/** Root map of the `dotted` rebuild: one flat dotted key per surviving leaf. */
+function buildDotted(leaves: LeafRecord[]): YAMLMap {
+  const root = new YAMLMap();
+  leaves.forEach((leaf) => {
+    const keyNode = new Scalar(leaf.segments.join("."));
+    setLeadingComments(keyNode, leaf.lines);
+    root.items.push(new Pair(keyNode, leaf.value));
+  });
+  return root;
+}
+
+/** Root map of the `nested` rebuild: intermediate maps per interior segment. */
+function buildNested(tree: TreeNode): YAMLMap {
+  const map = new YAMLMap();
+  tree.children.forEach((child, segment) => {
+    const keyNode = new Scalar(segment);
+    if (child.leaf === undefined) {
+      map.items.push(new Pair(keyNode, buildNested(child)));
+      return;
+    }
+    setLeadingComments(keyNode, child.leaf.lines);
+    map.items.push(new Pair(keyNode, child.leaf.value));
+  });
+  return map;
+}
+
+/**
  * Rewrite `source` with every entry of `remove` deleted, comments preserved.
  * Entries are deduped per document by canonical path; repeated identical
  * entries (and paths another removal already pruned) are idempotent no-ops.
@@ -262,12 +432,34 @@ export function rewriteConfigFile(
       seen.add(canonical);
       removeLeaf(root, entry.path);
     });
-  // `structure` is honored from the next task on; until then every layout is
-  // rewritten as `preserve` (nested mappings stay nested, dotted keys stay
-  // dotted), which removeLeaf/pruneMap/restyleMap below never restructure.
+  // Structure seam: `preserve` reuses the pruned tree as-is; `dotted`/`nested`
+  // rebuild it from flatten-order leaves (collect runs after prune/restyle so
+  // restyled segments carry into the re-homed keys and removals already
+  // happened). Value nodes are reused, so inline comments, anchors and tags
+  // survive; dropped ancestors' and orphaned comments are pooled onto the
+  // first leaf below them / the rebuilt file head.
   pruneMap(root, emptyAtParse);
   if (options.style !== "preserve") {
     restyleMap(root, options.style);
   }
+  if (options.structure === "preserve") {
+    return doc.toString({ lineWidth: 100 });
+  }
+  const leaves = new Map<string, LeafRecord>();
+  const orphans: string[] = [];
+  collectLeaves(root, [], [{ lines: commentLines([root]), taken: false }], leaves, orphans);
+  if (leaves.size === 0) {
+    // Nothing survives: keep the pruned layout and hoist any orphaned comments.
+    prependComments(root, orphans);
+    return doc.toString({ lineWidth: 100 });
+  }
+  const rebuilt =
+    options.structure === "dotted"
+      ? buildDotted([...leaves.values()])
+      : buildNested(buildTree([...leaves.values()], orphans));
+  setLeadingComments(rebuilt, orphans);
+  // Hand-built map nodes are fresh and well-formed but not Parsed-typed (no
+  // parsed ranges); assignment needs one trust-us cast after a structural fit.
+  doc.contents = rebuilt as unknown as typeof doc.contents;
   return doc.toString({ lineWidth: 100 });
 }

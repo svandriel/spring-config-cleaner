@@ -50,6 +50,32 @@ describe("rewriteConfigFile (preserve structure)", () => {
   });
 });
 
+describe("rewriteConfigFile (structure conformance)", () => {
+  it("conforms nested config to dotted keys, carrying comments", () => {
+    const result = rewriteConfigFile("spring: # top\n  application:\n    name: app\n", [], {
+      style: "kebab",
+      structure: "dotted",
+    });
+    expect(flattenDocument(parseDocument(result), 0).map((e) => e.path)).toEqual([
+      "spring.application.name",
+    ]);
+    expect(result).toContain("# top");
+    // Discriminating: the nested block must be gone (beyond the brief's asserts).
+    expect(result).not.toContain("  application");
+  });
+  it("conforms dotted config to nested maps", () => {
+    const result = rewriteConfigFile("spring.application.name: app\n", [], {
+      style: "kebab",
+      structure: "nested",
+    });
+    expect(flattenDocument(parseDocument(result), 0).map((e) => e.path)).toEqual([
+      "spring.application.name",
+    ]);
+    // Discriminating: the dotted key must be gone (beyond the brief's asserts).
+    expect(result).not.toContain("spring.application.name:");
+  });
+});
+
 describe("rewriteConfigFile comment salvage (fix round 1)", () => {
   it("keeps comments of a deleted trailing pair, trailing the surviving sibling", () => {
     const result = rewriteConfigFile(
