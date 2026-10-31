@@ -4,14 +4,15 @@
  *
  * The base file's single document is flattened into an effective map keyed by
  * canonical property path; the profile file's documents are then scanned, each
- * one only when its own gate matches the profile being compared. A profile
+ * one only when its own activation condition matches the profile being
+ * compared. A profile
  * entry is redundant when its canonical path exists in the base map with an
  * equal value; a differing value counts as an override; a path the base does
  * not have is a new property and is ignored here.
  */
+import { conditionMatches } from "./activation.ts";
 import type { ConfigDocument, ConfigFile } from "./configfile.ts";
-import { documentGate } from "./configfile.ts";
-import { gateMatches } from "./gates.ts";
+import { documentActivation } from "./configfile.ts";
 import { canonicalKey } from "./keys.ts";
 import type { FlatEntry } from "./paths.ts";
 import { flattenDocument } from "./paths.ts";
@@ -40,14 +41,14 @@ export interface ComparisonResult {
   overrides: number;
 }
 
-/** Documents of `file` whose own gate matches `profileName`. */
+/** Documents of `file` whose own activation condition matches `profileName`. */
 function matchingDocuments(
   file: ConfigFile,
   profileName: string,
 ): Array<readonly [number, ConfigDocument]> {
   return file.documents
     .map((document, documentIndex) => [documentIndex, document] as const)
-    .filter(([, document]) => gateMatches(documentGate(document.doc), profileName));
+    .filter(([, document]) => conditionMatches(documentActivation(document.doc), profileName));
 }
 
 /** Document-level comparison outcome, combined across the profile's documents. */
@@ -115,8 +116,9 @@ function compareDocument(
 
 /**
  * Compare `profile` against the single document of the `base` config file for
- * `profileName`. When the base document's gate does not match `profileName`,
- * the profile file is skipped entirely and an empty result is returned.
+ * `profileName`. When the base document's activation condition does not match
+ * `profileName`, the profile file is skipped entirely and an empty result is
+ * returned.
  *
  * Within a profile document, first occurrence of a canonical path wins: an
  * equal value contributes one redundant entry, a differing value contributes
@@ -129,7 +131,10 @@ export function compareProfileFile(
   profileName: string,
 ): ComparisonResult {
   const baseDocument = base.documents[0];
-  if (baseDocument === undefined || !gateMatches(documentGate(baseDocument.doc), profileName)) {
+  if (
+    baseDocument === undefined ||
+    !conditionMatches(documentActivation(baseDocument.doc), profileName)
+  ) {
     return { redundant: [], overrides: 0 };
   }
 

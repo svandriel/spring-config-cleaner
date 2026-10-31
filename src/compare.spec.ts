@@ -17,7 +17,7 @@ describe("compareProfileFile", () => {
     // b and t are overrides (same key, different value); u is a new property
     expect(result.overrides).toBe(2);
   });
-  it("skips evaluation when the base document's gate does not match", () => {
+  it("skips evaluation when the base document's activation condition does not match", () => {
     const base = parseConfigFile(
       "application.yml",
       "spring:\n  config:\n    activate:\n      on-profile: dev\nu: 5\n",
@@ -25,7 +25,7 @@ describe("compareProfileFile", () => {
     const profile = parseConfigFile("application-prod.yml", "u: 5\n");
     expect(compareProfileFile(base, profile, "prod")).toEqual({ redundant: [], overrides: 0 });
   });
-  it("ignores profile-file documents gated for other profiles", () => {
+  it("ignores profile-file documents activated for other profiles", () => {
     const profile = parseConfigFile(
       "application-prod.yml",
       "---\nspring:\n  config:\n    activate:\n      on-profile: dev\nv: 1\n",

@@ -14,13 +14,13 @@ import { extractProfileName, type KeyStyle } from "./keys.ts";
 import type { FileResult } from "./report.ts";
 import { rewriteConfigFile, type Structure } from "./rewrite.ts";
 
+export * from "./activation.ts";
 export type { ComparisonResult, RedundantEntry } from "./compare.ts";
 export { compareProfileFile } from "./compare.ts";
 export type { ConfigDocument, ConfigFile } from "./configfile.ts";
-export { ConfigError, documentGate, parseConfigFile } from "./configfile.ts";
-export type { DiscoveryError, DiscoveryResult } from "./discovery.ts";
-export { discoverConfigs } from "./discovery.ts";
-export * from "./gates.ts";
+export { ConfigError, documentActivation, parseConfigFile } from "./configfile.ts";
+export type { DiscoveryResult } from "./discovery.ts";
+export { DiscoveryError, discoverConfigs } from "./discovery.ts";
 export type { KeyStyle } from "./keys.ts";
 export { canonicalKey, extractProfileName, renderSegment, splitWords } from "./keys.ts";
 export * from "./paths.ts";

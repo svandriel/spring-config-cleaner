@@ -1,18 +1,18 @@
 /**
- * Matching of Spring profile gate expressions.
+ * Matching of Spring profile activation conditions.
  *
- * A `spring.config.activate.on-profile` gate may be absent, a plain profile
- * name, a CSV list, an array, or a Spring profile expression combining names
- * with `|` (OR), `&` (AND) and `!` (NOT) plus parentheses. Expressions are
- * evaluated against the exact (trimmed, case-sensitive) profile name of the
- * config file they gate.
+ * A `spring.config.activate.on-profile` activation condition may be absent, a
+ * plain profile name, a CSV list, an array, or a Spring profile expression
+ * combining names with `|` (OR), `&` (AND) and `!` (NOT) plus parentheses.
+ * Expressions are evaluated against the exact (trimmed, case-sensitive)
+ * profile name of the config file they activate.
  *
- * Matching is deliberately strict: a gate that never matched still matches,
- * but a *malformed* expression never matches — a broken gate must not cause an
- * otherwise-different document to be considered equal.
+ * Matching is deliberately strict: an absent activation condition always
+ * matches, but a *malformed* condition never matches — a broken condition must
+ * not cause an otherwise-different document to be considered equal.
  */
 
-/** Everything the expression evaluator can conclude for a sub-expression. */
+/** Everything the condition evaluator can conclude for a sub-expression. */
 type Status = "match" | "mismatch" | "malformed";
 
 /** Operators that separate top-level alternatives: both `|` and CSV. */
@@ -133,23 +133,28 @@ function parseAtom(expr: string, profile: string): Status {
 }
 
 /**
- * Does the given `on-profile` gate match `profile`?
+ * Does the given on-profile activation condition match `profile`?
  *
- * `undefined`/`null` gates always match. String, string-array and
- * comma-separated gates are parsed as profile expressions; anything that fails
- * to parse (unbalanced parens, dangling operators, stray operator characters
- * inside a name, non-string array entries, empty operands) evaluates to
- * `false` so a malformed gate can never produce a wrongful match.
+ * `undefined`/`null` conditions always match. String, string-array and
+ * comma-separated conditions are parsed as profile expressions; anything that
+ * fails to parse (unbalanced parens, dangling operators, stray operator
+ * characters inside a name, non-string array entries, empty operands)
+ * evaluates to `false` so a malformed condition can never produce a wrongful
+ * match.
+ *
+ * Named `conditionMatches` rather than `activationMatches` because
+ * "activation" names the event while "condition" names the thing tested, so
+ * `conditionMatches(documentActivation(doc), profile)` reads naturally.
  */
-export function gateMatches(gate: unknown, profile: string): boolean {
-  if (gate === undefined || gate === null) {
+export function conditionMatches(condition: unknown, profile: string): boolean {
+  if (condition === undefined || condition === null) {
     return true;
   }
-  if (typeof gate === "string") {
-    return parseOr(gate, profile) === "match";
+  if (typeof condition === "string") {
+    return parseOr(condition, profile) === "match";
   }
-  if (Array.isArray(gate)) {
-    const results = gate.map((entry) =>
+  if (Array.isArray(condition)) {
+    const results = condition.map((entry) =>
       typeof entry === "string" ? parseOr(entry, profile) : ("malformed" as const),
     );
     return combineOr(results) === "match";
