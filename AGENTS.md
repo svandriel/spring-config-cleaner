@@ -36,12 +36,17 @@ Double quotes, semicolons, 100-wide, 2-space indent, trailing commas `all`. Biom
 
 Avoid `for`/`while` loops whenever possible — prefer functional iteration (`map`, `reduce`, `filter`, `find`, `flatMap`, `some`/`every`, etc.). Use a loop only when functional form genuinely doesn't fit (e.g. early-exit-heavy parsers where a loop is materially clearer).
 
+## Comments
+
+Comments are only warranted when they add understanding. Do not blindly spray comments everywhere — no restating what the code does, no narrating obvious steps, no docstring boilerplate. A comment earns its place by explaining _why_ (a non-obvious constraint, a subtle invariant, a trap) or by pinning something a future editor would otherwise break. If a comment could be deleted without losing information, delete it.
+
 ## Formatting
 
 You don't have to care about formatting — the pre-commit hook (lint-staged → Biome) enforces proper formatting on commit. Don't hand-format or pre-run formatters just to satisfy style; write correct code, commit, and let the hook handle it.
 
 ## Workflow rules
 
+- Push after each task — don't let completed work stack up locally.
 - Always work in feature branches off `main`. Main branch is locked, PR's only.
 - Prefer git worktrees, but ask user first
 - Never commit anything under `docs/superpowers/` — process/design documents stay local and untracked (enforced by `.gitignore`).
