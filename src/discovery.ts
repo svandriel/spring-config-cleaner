@@ -8,7 +8,6 @@
  * both extension variants of the same profile exist; a malformed candidate
  * raises `ConfigError` from parsing, unwrapped.
  */
-/// <reference types="node" />
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { type ConfigFile, parseConfigFile } from "./configfile.ts";
