@@ -9,6 +9,11 @@ const PROFILE = "myApp:\n  baseKey: 1\n  extraKey: 2\n";
 
 const created: string[] = [];
 
+// Mock package.json import
+vi.mock("../package.json", () => ({
+  default: { version: "1.2.3" },
+}));
+
 afterEach(async () => {
   await Promise.all(created.map((dir) => rm(dir, { recursive: true, force: true })));
   created.length = 0;
@@ -87,12 +92,23 @@ describe("runCli", () => {
 
   it("fails on files whose contents already report duplicates but fail to parse", async () => {
     silenceOutput();
-    const dir = await fixture({ "application.yml": BASE, "application-prod.yml": "a: [1, 2\n" });
+    const dir = await fixture({
+      "application.yml": BASE,
+      "application-prod.yml": "a: [1, 2\n",
+    });
     expect(await runCli([dir, "--fix"])).toBe(1);
   });
 
   it("prints help and exits 0", async () => {
     silenceOutput();
     expect(await runCli(["--help"])).toBe(0);
+  });
+
+  it("prints the version number when --version is passed", async () => {
+    silenceOutput();
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    expect(await runCli(["--version"])).toBe(0);
+    expect(log).toHaveBeenCalledOnce();
+    expect(String(log.mock.calls[0]?.[0])).toContain("1.2.3");
   });
 });

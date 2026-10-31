@@ -2,6 +2,7 @@
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Command, CommanderError, Option } from "commander";
+import pkg from "../package.json" with { type: "json" };
 import { checkConfigs, type FixOptions, fixConfigs } from "./index.ts";
 import type { KeyStyle } from "./keys.ts";
 import { renderReport } from "./report.ts";
@@ -33,7 +34,7 @@ export async function runCli(argv: string[]): Promise<number> {
   program
     .name("spring-config-cleaner")
     .description("Check and fix duplicate keys in Spring application profile configs.")
-    .version("0.0.0")
+    .version(pkg.version)
     .exitOverride()
     .argument("[dir]", "config directory to process", process.cwd())
     .option("--fix", "rewrite the profile files, removing duplicates", false)
