@@ -35,4 +35,8 @@ describe("extractProfileName", () => {
     expect(extractProfileName("some/dir/application.yml")).toBe(null);
     expect(extractProfileName("some/dir/bootstrap.yml")).toBe(null);
   });
+  it("extracts profile names from Windows-separated paths", () => {
+    expect(extractProfileName("C:\\cfg\\application-prod.yml")).toBe("prod");
+    expect(extractProfileName("some\\dir\\application-test.yaml")).toBe("test");
+  });
 });

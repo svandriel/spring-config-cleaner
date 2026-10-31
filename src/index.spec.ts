@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -99,6 +99,37 @@ describe("fixConfigs", () => {
 
     expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(BASE);
   });
+
+  it("reports alias-bearing profiles as per-file errors instead of throwing", async () => {
+    const dir = await fixture({
+      "application.yml": "prod:\n  a: 1\n",
+      "application-prod.yml": "base: &base\n  a: 1\nprod: *base\n",
+    });
+
+    const result = await fixConfigs(dir, { style: "preserve", structure: "preserve" });
+
+    expect(result.files[0]?.file).toBe(join(dir, "application-prod.yml"));
+    expect(result.files[0]?.error).toBeInstanceOf(Error);
+    expect(await readFile(join(dir, "application-prod.yml"), "utf8")).toContain("&base");
+  });
+
+  it.skipIf(typeof process.getuid === "function" && process.getuid() === 0)(
+    "reports write failures as per-file errors",
+    async () => {
+      const dir = await fixture({ "application.yml": BASE, "application-prod.yml": PROFILE });
+      const target = join(dir, "application-prod.yml");
+      await chmod(target, 0o444);
+
+      try {
+        const result = await fixConfigs(dir, { style: "kebab", structure: "preserve" });
+
+        expect(result.files[0]?.file).toBe(target);
+        expect(result.files[0]?.error).toBeInstanceOf(Error);
+      } finally {
+        await chmod(target, 0o644);
+      }
+    },
+  );
 
   it("maps a discovery failure to one errored FileResult and writes nothing", async () => {
     const dir = await fixture({ "application-prod.yml": PROFILE });

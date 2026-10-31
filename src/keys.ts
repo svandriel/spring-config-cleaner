@@ -70,7 +70,7 @@ const PROFILE_RE = /^application-(.+)\.(?:yml|yaml)$/;
  * `application-<name>.yml` or `application-<name>.yaml`; `null` otherwise.
  */
 export function extractProfileName(path: string): string | null {
-  const basename = path.split("/").pop();
+  const basename = path.split(/[\\/]/).pop();
   if (basename === undefined) {
     return null;
   }

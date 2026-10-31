@@ -13,7 +13,7 @@
  * survive) and carrying dropped ancestors' comments onto the first leaf below
  * them.
  */
-import { isMap, isScalar, Pair, parseDocument, Scalar, YAMLMap } from "yaml";
+import { isAlias, isMap, isScalar, isSeq, Pair, parseDocument, Scalar, YAMLMap } from "yaml";
 import type { RedundantEntry } from "./compare.ts";
 import { canonicalKey, type KeyStyle, renderSegment, splitWords } from "./keys.ts";
 
@@ -88,79 +88,60 @@ function keyOf(pair: Pair): string | undefined {
       : String(pair.key);
 }
 
-/**
- * The first pair of `map` whose canonical key segments consume all of
- * `segments` — the leaf (or an identically-spelled ancestor) to remove.
- */
-function findLeafPair(map: YAMLMap, segments: string[]): Pair | undefined {
-  const target = canonicalKey(segments.join("."));
-  return map.items.find((pair) => {
-    const key = keyOf(pair);
-    return key !== undefined && canonicalKey(key) === target;
-  });
+/** Remove the pair at `index`, salvaging its comments onto a surviving neighbour. */
+function removePairAt(map: YAMLMap, index: number): void {
+  const pair = map.items[index];
+  if (pair === undefined) {
+    return;
+  }
+  const salvaged = commentLines([pair.key, pair.value]);
+  const next = map.items[index + 1];
+  const prev = index > 0 ? map.items[index - 1] : undefined;
+  // Identity-safe: deleting by key could remove a same-spelled pair elsewhere.
+  map.items.splice(index, 1);
+  if (next !== undefined && isScalar(next.key)) {
+    // A surviving follower adopts the removed pair's comments on its own
+    // commentBefore line (same indent position the source comment had).
+    prependComments(next.key, salvaged);
+  } else if (prev !== undefined) {
+    // Deleted trailing pair: its comments trail the preceding sibling's
+    // value (`alpha: 1 # guard`), which survives in serialized output.
+    appendComments(prev.value, salvaged);
+  } else {
+    // No sibling left: the map inherits the salvage as commentBefore, which
+    // also marks it comment-carrying so pruning keeps it as empty mapping.
+    prependComments(map, salvaged);
+  }
 }
 
 /**
- * The first pair of `map` whose canonical key segments are a proper prefix of
- * `segments` and whose value is a mapping to descend into.
+ * Remove the first flatten-order leaf under `map` whose canonical path is
+ * `target`. Dotted keys are transparent: `prefix` is the canonical path of
+ * the pairs already descended, and each key may contribute several segments.
+ * Matching is canonical (relaxed-binding); removal uses the pair's position.
+ * Missing paths are silently skipped; returns whether a pair was removed.
  */
-function findBranchPair(map: YAMLMap, segments: string[]): Pair | undefined {
-  const target = canonicalKey(segments.join("."));
-  return map.items.find((pair) => {
+function removeFirstMatch(map: YAMLMap, prefix: string, target: string): boolean {
+  return map.items.some((pair, index) => {
     const key = keyOf(pair);
-    if (key === undefined || !isMap(pair.value)) {
+    if (key === undefined) {
       return false;
     }
-    const prefix = canonicalKey(key);
-    return prefix.length < target.length && target.startsWith(`${prefix}.`);
+    const canonical = prefix === "" ? canonicalKey(key) : `${prefix}.${canonicalKey(key)}`;
+    if (canonical === target) {
+      removePairAt(map, index);
+      return true;
+    }
+    if (!isMap(pair.value) || !target.startsWith(`${canonical}.`)) {
+      return false;
+    }
+    return removeFirstMatch(pair.value, canonical, target);
   });
 }
 
-/**
- * Remove the leaf reached by walking `map` along `path`. Dotted keys are
- * transparent: every key along the way may cover several path segments at
- * once, so prefix consumption picks the branch and the remainder recurses.
- * Matching is canonical (relaxed-binding) while the removal itself uses the
- * map's original key spelling. Missing paths are silently skipped; returns
- * whether a pair was actually removed.
- */
+/** Remove the first flatten-order occurrence of `path` from `map`. */
 function removeLeaf(map: YAMLMap, path: string): boolean {
-  const segments = path.split(".");
-  const leaf = findLeafPair(map, segments);
-  if (leaf !== undefined) {
-    const index = map.items.indexOf(leaf);
-    const salvaged = commentLines([leaf.key, leaf.value]);
-    const next = map.items[index + 1];
-    const prev = index > 0 ? map.items[index - 1] : undefined;
-    const key = keyOf(leaf);
-    if (key === undefined || map.delete(key) === false) {
-      return false;
-    }
-    if (next !== undefined && isScalar(next.key)) {
-      // A surviving follower adopts the removed pair's comments on its own
-      // commentBefore line (same indent position the source comment had).
-      prependComments(next.key, salvaged);
-    } else if (prev !== undefined) {
-      // Deleted trailing pair: its comments trail the preceding sibling's
-      // value (`alpha: 1 # guard`), which survives in serialized output.
-      appendComments(prev.value, salvaged);
-    } else {
-      // No sibling left: the map inherits the salvage as commentBefore, which
-      // also marks it comment-carrying so pruning keeps it as empty mapping.
-      prependComments(map, salvaged);
-    }
-    return true;
-  }
-  const branch = findBranchPair(map, segments);
-  if (branch === undefined || !isMap(branch.value)) {
-    return false;
-  }
-  const branchKey = keyOf(branch);
-  if (branchKey === undefined) {
-    return false;
-  }
-  const consumed = canonicalKey(branchKey).split(".").length;
-  return removeLeaf(branch.value, segments.slice(consumed).join("."));
+  return removeFirstMatch(map, "", canonicalKey(path));
 }
 
 /** Whether `node` (a yaml node) carries an attached comment of any kind. */
@@ -294,14 +275,14 @@ function collectLeaves(
   map.items.forEach((pair) => {
     const key = keyOf(pair);
     if (key === undefined) {
-      orphans.push(...commentLines([pair.key, pair.value]));
+      orphans.push(...chainLines(chain), ...commentLines([pair.key, pair.value]));
       return;
     }
     const segments = [...prefixSegments, ...key.split(".")];
     const value = pair.value;
     if (isMap(value)) {
       if (value.items.length === 0) {
-        orphans.push(...commentLines([pair.key, value]));
+        orphans.push(...chainLines(chain), ...commentLines([pair.key, value]));
         return;
       }
       collectLeaves(
@@ -414,6 +395,20 @@ function buildNested(tree: TreeNode, orphans: string[]): YAMLMap {
   return map;
 }
 
+/** Whether `node` is or contains a YAML alias anywhere in its tree. */
+function containsAlias(node: unknown): boolean {
+  if (isAlias(node)) {
+    return true;
+  }
+  if (isMap(node)) {
+    return node.items.some((pair) => containsAlias(pair.key) || containsAlias(pair.value));
+  }
+  if (isSeq(node)) {
+    return node.items.some(containsAlias);
+  }
+  return false;
+}
+
 /**
  * Rewrite `source` with every entry of `remove` deleted, comments preserved.
  * Entries are deduped per document by canonical path; repeated identical
@@ -431,6 +426,9 @@ export function rewriteConfigFile(
     throw new Error("rewriteConfigFile: empty or invalid single-document config");
   }
   const root = doc.contents;
+  if (containsAlias(root)) {
+    throw new Error("rewriteConfigFile: YAML aliases are not supported");
+  }
   const emptyAtParse = emptyMappingsBeforeRemovals(root);
   const seen = new Set<string>();
   remove

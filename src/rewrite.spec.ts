@@ -40,6 +40,26 @@ describe("rewriteConfigFile (preserve structure)", () => {
     );
     expect(flattenDocument(parseDocument(result), 0)).toEqual([]);
   });
+  it("removes the first flatten-order occurrence, keeping a later override", () => {
+    const result = rewriteConfigFile(
+      "my:\n  app:\n    maxThreads: 8\nmy.app.maxThreads: 9\n",
+      [entry("my.app.maxThreads", [["my"], ["app"], ["max", "Threads"]], 8)],
+      { style: "preserve", structure: "preserve" },
+    );
+    expect(flattenDocument(parseDocument(result), 0).map((e) => [e.path, e.value])).toEqual([
+      ["my.app.maxThreads", 9],
+    ]);
+  });
+  it("removes a dotted first occurrence, keeping a later nested override", () => {
+    const result = rewriteConfigFile(
+      "my.app.maxThreads: 8\nmy:\n  app:\n    maxThreads: 9\n",
+      [entry("my.app.maxThreads", [["my"], ["app"], ["max", "Threads"]], 8)],
+      { style: "preserve", structure: "preserve" },
+    );
+    expect(flattenDocument(parseDocument(result), 0).map((e) => [e.path, e.value])).toEqual([
+      ["my.app.maxThreads", 9],
+    ]);
+  });
   it("keeps parents that carry comments", () => {
     const result = rewriteConfigFile(
       "outer: # keep me\n  kill: 1\n",
@@ -92,6 +112,24 @@ describe("rewriteConfigFile (structure conformance)", () => {
     });
     expect(flattenDocument(parseDocument(result), 0).map((e) => e.path)).toEqual(["a.b.c"]);
   });
+  it("keeps ancestor comments when a subtree empties without survivors", () => {
+    const source = [
+      "wrapper:",
+      "  # my section",
+      "  my:",
+      "    # app section",
+      "    app:",
+      "      maxThreads: 8",
+      "logging:",
+      "  level: info",
+    ].join("\n");
+    const result = rewriteConfigFile(source, [entry("wrapper.my.app.maxThreads", [], 8)], {
+      style: "preserve",
+      structure: "nested",
+    });
+    expect(result).toContain("# my section");
+    expect(result).toContain("# app section");
+  });
   it("keeps the later spelling of a twice-spelled canonical path", () => {
     const result = rewriteConfigFile("a.b: 1\na:\n  B: 2\n", [], {
       style: "preserve",
@@ -134,6 +172,15 @@ describe("rewriteConfigFile comment salvage (fix round 1)", () => {
     expect(result).toContain("# only comment");
     expect(result).toContain("# trail");
     expect(result).toContain("outer");
+  });
+  it("rejects documents containing aliases instead of silently doing nothing", () => {
+    const source = "base: &base\n  a: 1\nprod: *base\n";
+    expect(() =>
+      rewriteConfigFile(source, [entry("prod.a", [["prod"], ["a"]], 1)], {
+        style: "preserve",
+        structure: "preserve",
+      }),
+    ).toThrow(/alias/i);
   });
   it("does not prune empty mappings the rewrite did not empty", () => {
     const result = rewriteConfigFile(

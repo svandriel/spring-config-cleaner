@@ -80,16 +80,24 @@ async function analyzeConfigs(
   const { base, profiles } = discovered;
 
   const files = await Promise.all(
-    profiles.map(async (profile) => {
+    profiles.map(async (profile): Promise<FileResult> => {
       const name = extractProfileName(profile.path);
       if (name === null) {
         return { file: profile.path, redundant: [] };
       }
-      const { redundant } = compareProfileFile(base, profile, name);
-      if (apply !== undefined && redundant.length > 0) {
-        await apply(profile, redundant);
+      try {
+        const { redundant } = compareProfileFile(base, profile, name);
+        if (apply !== undefined && redundant.length > 0) {
+          await apply(profile, redundant);
+        }
+        return { file: profile.path, redundant };
+      } catch (err) {
+        return {
+          file: err instanceof ConfigError ? err.path : profile.path,
+          redundant: [],
+          error: err instanceof Error ? err : new Error(String(err)),
+        };
       }
-      return { file: profile.path, redundant };
     }),
   );
 
