@@ -37,9 +37,10 @@ Options:
 
 ### Output
 
-Findings are diagnostics: a clickable `path:line:column`, the offending source line
-with a caret run under the redundant entry, and the base location that already
-defines the same value.
+Findings are diagnostics: a file header with a clickable `line:column` for each
+finding, the offending source line with a caret run under the redundant entry,
+and the base location that already defines the same value. Error headers include
+the full `path:line:column`.
 
 ```text
 /srv/app/config/application-prod.yml
@@ -67,8 +68,9 @@ defines the same value.
 
 YAML parse errors show the failing position and a frame; a clean run prints a
 single green checkmark. Colour is applied only when the destination is a
-colour-capable terminal, so piped and CI output stays plain text. `NO_COLOR` and
-`FORCE_COLOR` are honoured through Node's `styleText`.
+colour-capable terminal, so piped and CI output stays plain text. `FORCE_COLOR`
+overrides that check, while `NO_COLOR`, `TERM=dumb` and non-TTY destinations
+keep the output plain.
 
 ### Library
 

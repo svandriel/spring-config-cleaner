@@ -39,6 +39,9 @@ const INDENT = "  ";
 const BLOCK_SEPARATOR = "\n\n";
 const TAB_WIDTH = 4;
 
+/** Plain clean-run text without the trailing newline, shared with the report facade. */
+export const CLEAN_LINE = "✓ No duplicates found.";
+
 /** Render one entry's value: plain objects and arrays as JSON, everything else as text. */
 function formatValue(value: unknown): string {
   return typeof value === "object" && value !== null ? JSON.stringify(value) : String(value);
@@ -195,6 +198,11 @@ function isConfigError(error: FileError): boolean {
   return error instanceof ConfigError || error.name === "ConfigError";
 }
 
+/** Distinguishes a syntax failure from an unsupported multi-document file. */
+function isMultiDocument(error: FileError): boolean {
+  return (error as { kind?: unknown }).kind === "multi-document";
+}
+
 function isDiscoveryError(error: FileError): boolean {
   return error instanceof DiscoveryError || error.name === "DiscoveryError";
 }
@@ -208,16 +216,18 @@ function errorSource(result: FileResult, error: FileError): string | undefined {
 function errorHeader(
   style: Style,
   result: FileResult,
+  error: FileError,
   position: { line: number; column: number } | undefined,
 ): string {
   const marker = style.error("✗");
   if (position === undefined) {
     return `${marker} ${style.path(result.file)}`;
   }
+  const label = isMultiDocument(error) ? "multiple documents" : "invalid YAML";
   return (
     `${marker} ${style.path(result.file)}` +
     `${style.position(`:${position.line}:${position.column}`)}  ` +
-    `${style.error("invalid YAML")}`
+    `${style.error(label)}`
   );
 }
 
@@ -228,7 +238,7 @@ function errorBlock(result: FileResult, style: Style): string[] {
   const lines = source === undefined ? undefined : sourceLines(source);
   const text =
     lines === undefined || position === undefined ? undefined : lineText(lines, position.line);
-  const header = errorHeader(style, result, position);
+  const header = errorHeader(style, result, error, position);
   if (text === undefined || lines === undefined || position === undefined) {
     return [header, `${INDENT}${style.error(error.message)}`];
   }
@@ -253,6 +263,11 @@ function errorHint(result: FileResult, style: Style): string | undefined {
   }
   if (isConfigError(error)) {
     const position = configPosition(error);
+    if (isMultiDocument(error)) {
+      return position === undefined
+        ? `${INDENT}Keep a single YAML document in ${style.path(result.file)}.`
+        : `${INDENT}Remove the extra YAML document at ${style.path(result.file)}${style.position(`:${position.line}:${position.column}`)}.`;
+    }
     return position === undefined
       ? `${INDENT}Fix the YAML in ${style.path(result.file)}.`
       : `${INDENT}Fix the YAML syntax at ${style.path(result.file)}${style.position(`:${position.line}:${position.column}`)}.`;
@@ -264,23 +279,30 @@ function errorHint(result: FileResult, style: Style): string | undefined {
 }
 
 function summaryLine(results: FileResult[], mode: RenderMode, style: Style): string | undefined {
-  const duplicates = results.reduce((count, result) => count + result.redundant.length, 0);
-  const errors = results.filter((result) => result.error !== undefined).length;
+  // An errored file renders only its error block, so its entries are not findings.
+  const healthy = results.filter((result) => result.error === undefined);
+  const duplicates = healthy.reduce((count, result) => count + result.redundant.length, 0);
+  const errors = results.length - healthy.length;
   if (duplicates === 0) {
     return undefined;
   }
-  if (mode === "fix" && errors === 0) {
-    const files = results.filter((result) => result.redundant.length > 0).length;
-    return `${style.success("✓")} Removed ${plural(duplicates, "duplicate", "duplicates")} from ${plural(files, "file", "files")}.`;
+  const filesWithDuplicates = healthy.filter((result) => result.redundant.length > 0).length;
+  const errorSuffix = errors === 0 ? "" : `, ${style.error(plural(errors, "error", "errors"))}`;
+  if (mode === "fix") {
+    const removed =
+      `Removed ${plural(duplicates, "duplicate", "duplicates")} from ` +
+      plural(filesWithDuplicates, "file", "files");
+    return errors === 0
+      ? style.success(`✓ ${removed}.`)
+      : `${style.error("✗")} ${style.success(removed)}${errorSuffix}`;
   }
   const files = results.length;
   const duplicateSummary = style.duplicate(
     `${plural(duplicates, "duplicate", "duplicates")} in ` +
-      `${results.filter((result) => result.redundant.length > 0).length} of ${plural(files, "profile file", "profile files")}`,
+      `${filesWithDuplicates} of ${plural(files, "profile file", "profile files")}`,
   );
-  const errorSummary = errors === 0 ? "" : `, ${style.error(plural(errors, "error", "errors"))}`;
   const suffix = mode === "dry-run" ? style.dim(" (dry run — nothing written)") : "";
-  return `${style.error("✗")} ${duplicateSummary}${suffix}${errorSummary}`;
+  return `${style.error("✗")} ${duplicateSummary}${suffix}${errorSuffix}`;
 }
 
 function hintLines(hints: Hint[], style: Style): string[] {
@@ -313,7 +335,7 @@ export function renderResults(results: FileResult[], options: RenderOptions): st
     ...hintLines(options.hints ?? [], style),
   ];
   if (blocks.length === 0 && summary === undefined) {
-    return `${style.success("✓")} No duplicates found.\n`;
+    return `${style.success(CLEAN_LINE)}\n`;
   }
   const sections = [...blocks.map((block) => block.join("\n"))];
   if (summary !== undefined) {

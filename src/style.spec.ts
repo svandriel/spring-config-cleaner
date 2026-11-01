@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createStyle } from "./style.ts";
+import { colorEnabled, createStyle } from "./style.ts";
 
 describe("createStyle", () => {
   it("maps every semantic token to its ANSI style", () => {
@@ -17,5 +17,29 @@ describe("createStyle", () => {
     const style = createStyle(false);
     expect(style.path("a.yml")).toBe("a.yml");
     expect(style.error("boom")).toBe("boom");
+  });
+});
+
+describe("colorEnabled", () => {
+  const tty = { isTTY: true };
+  const pipe = { isTTY: false };
+
+  it("honours FORCE_COLOR even when the destination is a pipe", () => {
+    expect(colorEnabled(pipe, { FORCE_COLOR: "1" })).toBe(true);
+    expect(colorEnabled(pipe, { FORCE_COLOR: "true" })).toBe(true);
+    expect(colorEnabled(pipe, { FORCE_COLOR: "0" })).toBe(false);
+  });
+
+  it("honours NO_COLOR on a terminal", () => {
+    expect(colorEnabled(tty, { NO_COLOR: "1" })).toBe(false);
+  });
+
+  it("keeps colour off for dumb terminals and pipes", () => {
+    expect(colorEnabled(tty, { TERM: "dumb" })).toBe(false);
+    expect(colorEnabled(pipe, {})).toBe(false);
+  });
+
+  it("enables colour for a terminal", () => {
+    expect(colorEnabled(tty, {})).toBe(true);
   });
 });

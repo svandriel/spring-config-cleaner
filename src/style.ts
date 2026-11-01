@@ -25,6 +25,24 @@ export interface Style {
   command(text: string): string;
 }
 
+/**
+ * Whether colour should be emitted to `stream`: `FORCE_COLOR` wins over
+ * `NO_COLOR`, and without either only a real terminal gets colour.
+ */
+export function colorEnabled(
+  stream: { isTTY?: boolean | undefined },
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const { FORCE_COLOR: force, NO_COLOR: noColor, TERM: term } = env;
+  if (force !== undefined) {
+    return force !== "0" && force.toLowerCase() !== "false";
+  }
+  if (noColor !== undefined && noColor !== "") {
+    return false;
+  }
+  return stream.isTTY === true && term !== "dumb";
+}
+
 export function createStyle(enabled: boolean): Style {
   const paint =
     (format: Parameters<typeof styleText>[0]) =>

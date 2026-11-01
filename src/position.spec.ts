@@ -7,7 +7,7 @@ describe("lineIndex", () => {
     expect(index.position(0, 1)).toEqual({ line: 1, column: 1, endLine: 1, endColumn: 2 });
     expect(index.position(1, 4)).toEqual({ line: 1, column: 2, endLine: 2, endColumn: 2 });
   });
-  it("keeps the real end of a span that crosses lines, ignoring CR", () => {
+  it("keeps the real end of a span that crosses lines", () => {
     expect(lineIndex("a\r\nb\r\n").position(0, 5)).toEqual({
       line: 1,
       column: 1,

@@ -92,6 +92,32 @@ describe("runCli", () => {
     expect(written(log)).toContain(`spring-config-cleaner --fix '${dir}'`);
   });
 
+  it("inserts -- before a directory that starts with a dash", async () => {
+    silenceOutput();
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const root = await fixture({});
+    const dir = join(root, "-config");
+    await mkdir(dir);
+    await writeFile(join(dir, "application.yml"), BASE);
+    await writeFile(join(dir, "application-prod.yml"), PROFILE);
+    const cwd = process.cwd();
+    process.chdir(root);
+    try {
+      expect(await runCli(["--", "-config"])).toBe(1);
+      expect(written(log)).toContain("spring-config-cleaner --fix -- -config");
+    } finally {
+      process.chdir(cwd);
+    }
+  });
+
+  it("keeps an explicit --structure in the dry-run apply hint", async () => {
+    silenceOutput();
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const dir = await duplicateFixture();
+    expect(await runCli([dir, "--fix", "--dry-run", "--structure", "dotted"])).toBe(0);
+    expect(written(log)).toContain(`Apply:  spring-config-cleaner --fix --structure dotted ${dir}`);
+  });
+
   it("rejects --check and --fix together", async () => {
     silenceOutput();
     const dir = await duplicateFixture();

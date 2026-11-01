@@ -14,17 +14,28 @@ import type { Document, DocumentOptions, ParseOptions, SchemaOptions } from "yam
 import { isCollection, isScalar, parseAllDocuments } from "yaml";
 import { lineIndex, type SourcePosition } from "./position.ts";
 
+/** Whether a config failed to parse or held unsupported documents. */
+export type ConfigErrorKind = "syntax" | "multi-document";
+
 /** Failure while parsing a specific config file. `path` is the file path. */
 export class ConfigError extends Error {
   path: string;
   line?: number;
   column?: number;
   source?: string;
+  kind: ConfigErrorKind;
 
-  constructor(path: string, message: string, position?: SourcePosition, source?: string) {
+  constructor(
+    path: string,
+    message: string,
+    position?: SourcePosition,
+    source?: string,
+    kind: ConfigErrorKind = "syntax",
+  ) {
     super(message);
     this.path = path;
     this.name = "ConfigError";
+    this.kind = kind;
     if (position !== undefined) {
       this.line = position.line;
       this.column = position.column;
@@ -83,19 +94,22 @@ export function documentActivation(doc: Document): unknown {
  * more than one document, or when the document fails to parse.
  */
 export function parseConfigFile(path: string, source: string): ConfigFile {
-  const docs = parseAllDocuments(source, {
+  // A UTF-8 BOM shifts yaml's offsets but not the editor's visual columns.
+  const text = source.startsWith("\uFEFF") ? source.slice(1) : source;
+  const docs = parseAllDocuments(text, {
     ignoreChaining: true,
   } as ParseOptions & DocumentOptions & SchemaOptions);
 
   if (docs.length !== 1) {
     const second = docs[1];
     const start = second?.range?.[0];
-    const position = start === undefined ? undefined : lineIndex(source).position(start, start + 1);
+    const position = start === undefined ? undefined : lineIndex(text).position(start, start + 1);
     throw new ConfigError(
       path,
       `expected a single YAML document, found ${docs.length}`,
       position,
-      source,
+      text,
+      docs.length > 1 ? "multi-document" : "syntax",
     );
   }
 
@@ -111,13 +125,13 @@ export function parseConfigFile(path: string, source: string): ConfigFile {
       start === undefined
         ? undefined
         : { line: start.line, column: start.col, endLine: start.line, endColumn: start.col + 1 };
-    throw new ConfigError(path, message, position, source);
+    throw new ConfigError(path, message, position, text);
   }
 
   const activation = documentActivation(doc);
   return {
     path,
-    source,
+    source: text,
     documents: [{ doc, activation }],
   };
 }

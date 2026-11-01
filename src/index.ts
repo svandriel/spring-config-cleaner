@@ -50,17 +50,26 @@ export interface FixOptions {
 /** Outcome of a fix run; shapes identically to a check run's result. */
 export type FixResult = CheckResult;
 
+/** Source text carried by a thrown value, when it has one. */
+function sourceOf(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null) {
+    return undefined;
+  }
+  const source = (error as { source?: unknown }).source;
+  return typeof source === "string" ? source : undefined;
+}
+
 /** Single errored `FileResult` for a check/fix that failed before comparing. */
 function errorResult(file: string, error: unknown): CheckResult {
   const failure = error instanceof Error ? error : new Error(String(error));
-  const source = (error as { source?: unknown }).source;
+  const source = sourceOf(error);
   return {
     files: [
       {
         file,
         redundant: [],
         error: failure,
-        ...(typeof source === "string" ? { source } : {}),
+        ...(source === undefined ? {} : { source }),
       },
     ],
     duplicates: 0,

@@ -298,6 +298,16 @@ describe("renderResults", () => {
 
   it("summarises duplicates and errors together", () => {
     const results: FileResult[] = [
+      { file: "a.yml", redundant: [entry("x", 1)] },
+      { file: "b.yml", redundant: [], error: new ConfigError("b.yml", "bad") },
+    ];
+    expect(renderResults(results, check)).toContain(
+      "✗ 1 duplicate in 1 of 2 profile files, 1 error",
+    );
+  });
+
+  it("does not count findings that an error block hides", () => {
+    const results: FileResult[] = [
       {
         file: "a.yml",
         redundant: [entry("x", 1)],
@@ -305,9 +315,53 @@ describe("renderResults", () => {
       },
       { file: "b.yml", redundant: [] },
     ];
-    expect(renderResults(results, check)).toContain(
-      "✗ 1 duplicate in 1 of 2 profile files, 1 error",
+    const rendered = renderResults(results, check);
+    expect(rendered).not.toContain("duplicate in");
+    expect(rendered).toContain("bad");
+  });
+
+  it("reports removed duplicates and errors without calling them duplicates", () => {
+    const results: FileResult[] = [
+      { file: "a.yml", redundant: [entry("x", 1)] },
+      { file: "b.yml", redundant: [], error: new ConfigError("b.yml", "bad") },
+    ];
+    expect(renderResults(results, fix)).toContain("✗ Removed 1 duplicate from 1 file, 1 error");
+  });
+
+  it("labels a multi-document file as unsupported, not as invalid YAML", () => {
+    const source = "a: 1\n---\nb: 2\n";
+    const results: FileResult[] = [
+      {
+        file: "application-multi.yml",
+        source,
+        redundant: [],
+        error: new ConfigError(
+          "application-multi.yml",
+          "expected a single YAML document, found 2",
+          at(2, 1, 2, 2),
+          source,
+          "multi-document",
+        ),
+      },
+    ];
+    expect(renderResults(results, check)).toBe(
+      "✗ application-multi.yml:2:1  multiple documents\n" +
+        "  2 │ ---\n" +
+        "    │ ^^^  expected a single YAML document, found 2\n" +
+        "\n" +
+        "  Remove the extra YAML document at application-multi.yml:2:1.\n",
     );
+  });
+
+  it("colours the whole clean line and success summary green", () => {
+    expect(renderResults([], { mode: "check", style: createStyle(true) })).toBe(
+      "\u001b[32m✓ No duplicates found.\u001b[39m\n",
+    );
+    const fixed = renderResults([{ file: "a.yml", redundant: [entry("x", 1)] }], {
+      mode: "fix",
+      style: createStyle(true),
+    });
+    expect(fixed).toContain("\u001b[32m✓ Removed 1 duplicate from 1 file.\u001b[39m");
   });
 
   it("applies the semantic colours to paths and finding rows", () => {

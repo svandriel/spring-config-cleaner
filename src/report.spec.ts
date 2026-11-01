@@ -23,6 +23,7 @@ const errorFor = (message: string): ConfigError => ({
   name: "ConfigError",
   message,
   path: "application-broken.yml",
+  kind: "syntax",
 });
 
 describe("renderReport", () => {

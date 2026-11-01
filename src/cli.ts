@@ -7,7 +7,7 @@ import { checkConfigs, fixConfigs } from "./index.ts";
 import type { KeyStyle } from "./keys.ts";
 import { type Hint, type RenderMode, renderResults } from "./render.ts";
 import type { Structure } from "./rewrite.ts";
-import { createStyle, type Style } from "./style.ts";
+import { colorEnabled, createStyle, type Style } from "./style.ts";
 
 const STYLES: readonly string[] = ["kebab", "camel", "snake", "preserve"];
 const STRUCTURES: readonly string[] = ["preserve", "nested", "dotted"];
@@ -36,13 +36,19 @@ function usageHint(style: Style): string {
   return `  Run ${style.command(`${COMMAND} --help`)} for usage.`;
 }
 
+/** A directory word that stays an argument even when it starts with `-`. */
+function directoryWord(dir: string): string {
+  const quoted = shellQuote(dir);
+  return dir.startsWith("-") ? `-- ${quoted}` : quoted;
+}
+
 /** The command that performs `flags`, preserving explicit non-default rewrite options. */
 function commandFor(flags: string[], dir: string, options: Options): string {
   const rewritten = [
     ...flags,
     ...(options.style === DEFAULT_STYLE ? [] : ["--style", options.style]),
     ...(options.structure === DEFAULT_STRUCTURE ? [] : ["--structure", options.structure]),
-    shellQuote(dir),
+    directoryWord(dir),
   ];
   return [COMMAND, ...rewritten].join(" ");
 }
@@ -78,8 +84,8 @@ function hintsFor(mode: RenderMode, duplicates: number, dir: string, options: Op
  * itself never calls `process.exit`.
  */
 export async function runCli(argv: string[]): Promise<number> {
-  const stdoutStyle = createStyle(process.stdout.hasColors?.() === true);
-  const stderrStyle = createStyle(process.stderr.hasColors?.() === true);
+  const stdoutStyle = createStyle(colorEnabled(process.stdout));
+  const stderrStyle = createStyle(colorEnabled(process.stderr));
 
   const program = new Command();
   program
