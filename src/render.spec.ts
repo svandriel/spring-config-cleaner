@@ -61,7 +61,7 @@ describe("renderResults", () => {
       "application-prod.yml\n" +
         "  4:3  duplicate  server.port = 8080\n" +
         "\n" +
-        "✖ 1 duplicate in 1 of 1 profile file\n",
+        "✗ 1 duplicate in 1 of 1 profile file\n",
     );
   });
 
@@ -82,7 +82,7 @@ describe("renderResults", () => {
         "  2 │ my.app.maxThreads: 8\n" +
         "    │ ^^^^^^^^^^^^^^^^^^^^  already defined in application.yml:6:5\n" +
         "\n" +
-        "✖ 1 duplicate in 1 of 1 profile file\n",
+        "✗ 1 duplicate in 1 of 1 profile file\n",
     );
   });
 
@@ -128,7 +128,7 @@ describe("renderResults", () => {
     const rendered = renderResults(results, dryRun);
     expect(rendered).toContain("  2:1  duplicate  my.app.maxThreads = 8 (would remove)\n");
     expect(rendered).toContain(
-      "✖ 1 duplicate in 1 of 1 profile file (dry run — nothing written)\n",
+      "✗ 1 duplicate in 1 of 1 profile file (dry run — nothing written)\n",
     );
     expect(rendered).not.toContain("No duplicates found.");
   });
@@ -174,7 +174,7 @@ describe("renderResults", () => {
       },
     ];
     expect(renderResults(results, check)).toBe(
-      "✖ application-prod.yml:3:3  invalid YAML\n" +
+      "✗ application-prod.yml:3:3  invalid YAML\n" +
         "  3 │   maxThreads: [8,\n" +
         "    │   ^^^^^^^^^^^^^^^  unexpected end of the stream within a flow collection\n" +
         "\n" +
@@ -191,7 +191,7 @@ describe("renderResults", () => {
       },
     ];
     expect(renderResults(results, check)).toBe(
-      "✖ application-multi.yml\n" +
+      "✗ application-multi.yml\n" +
         "  expected a single YAML document, found 2\n" +
         "\n" +
         "  Fix the YAML in application-multi.yml.\n",
@@ -210,7 +210,7 @@ describe("renderResults", () => {
       },
     ];
     expect(renderResults(results, check)).toBe(
-      "✖ /srv/app/config\n" +
+      "✗ /srv/app/config\n" +
         "  no application.yml or application.yaml found\n" +
         "\n" +
         "  Run spring-config-cleaner --help for usage.\n",
@@ -235,7 +235,7 @@ describe("renderResults", () => {
       "application-prod.yml\n" +
         "  1:1  duplicate  server.port = 8080\n" +
         "\n" +
-        "✖ 1 duplicate in 1 of 1 profile file\n" +
+        "✗ 1 duplicate in 1 of 1 profile file\n" +
         "\n" +
         "  Remove them:    spring-config-cleaner --fix .\n" +
         "  Preview first:  spring-config-cleaner --fix --dry-run .\n",
@@ -252,7 +252,7 @@ describe("renderResults", () => {
       { file: "b.yml", redundant: [] },
     ];
     expect(renderResults(results, check)).toContain(
-      "✖ 1 duplicate in 1 of 2 profile files, 1 error",
+      "✗ 1 duplicate in 1 of 2 profile files, 1 error",
     );
   });
 

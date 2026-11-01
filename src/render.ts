@@ -167,7 +167,7 @@ function errorHeader(
   result: FileResult,
   position: { line: number; column: number } | undefined,
 ): string {
-  const marker = style.error("✖");
+  const marker = style.error("✗");
   if (position === undefined) {
     return `${marker} ${style.path(result.file)}`;
   }
@@ -237,7 +237,7 @@ function summaryLine(results: FileResult[], mode: RenderMode, style: Style): str
   );
   const errorSummary = errors === 0 ? "" : `, ${style.error(plural(errors, "error", "errors"))}`;
   const suffix = mode === "dry-run" ? style.dim(" (dry run — nothing written)") : "";
-  return `${style.error("✖")} ${duplicateSummary}${suffix}${errorSummary}`;
+  return `${style.error("✗")} ${duplicateSummary}${suffix}${errorSummary}`;
 }
 
 function hintLines(hints: Hint[], style: Style): string[] {

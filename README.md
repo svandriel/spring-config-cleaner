@@ -47,7 +47,7 @@ defines the same value.
   2 │ my.app.maxThreads: 8
     │ ^^^^^^^^^^^^^^^^^^^^  already defined in /srv/app/config/application.yml:7:5
 
-✖ 2 duplicates in 2 of 2 profile files
+✗ 2 duplicates in 2 of 2 profile files
 
   Remove them:    spring-config-cleaner --fix /srv/app/config
   Preview first:  spring-config-cleaner --fix --dry-run /srv/app/config

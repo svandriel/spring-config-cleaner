@@ -78,7 +78,7 @@ function classicReport(dir: string): string {
     "  1:1  duplicate  my.app.maxThreads = 8\n" +
     frame(1) +
     "\n" +
-    "✖ 2 duplicates in 2 of 2 profile files\n"
+    "✗ 2 duplicates in 2 of 2 profile files\n"
   );
 }
 
@@ -184,7 +184,7 @@ describe("e2e CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toBe(
-      `✖ ${broken}:1:4  invalid YAML\n` +
+      `✗ ${broken}:1:4  invalid YAML\n` +
         "  1 │ a: 1\n" +
         "    │    ^  Nested mappings are not allowed in compact mappings\n" +
         "\n" +
