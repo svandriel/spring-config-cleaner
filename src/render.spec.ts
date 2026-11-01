@@ -86,6 +86,60 @@ describe("renderResults", () => {
     );
   });
 
+  it("expands tabs in the frame so carets line up with the displayed text", () => {
+    const source = "a:\t1\n";
+    const results: FileResult[] = [
+      {
+        file: "application-prod.yml",
+        source,
+        redundant: [entry("a", 1, at(1, 1, 1, 5), baseAt("application.yml", 1, 1))],
+      },
+    ];
+    expect(renderResults(results, check)).toBe(
+      "application-prod.yml\n" +
+        "  1:1  duplicate  a = 1\n" +
+        "  1 │ a:  1\n" +
+        "    │ ^^^^^  already defined in application.yml:1:1\n" +
+        "\n" +
+        "✗ 1 duplicate in 1 of 1 profile file\n",
+    );
+  });
+
+  it("expands a tab-indented parse error before placing its caret", () => {
+    const source = "\tb: 2\n";
+    const results: FileResult[] = [
+      {
+        file: "application-broken.yml",
+        source,
+        redundant: [],
+        error: new ConfigError("application-broken.yml", "tab-indented", at(1, 2, 1, 3), source),
+      },
+    ];
+    expect(renderResults(results, check)).toBe(
+      "✗ application-broken.yml:1:2  invalid YAML\n" +
+        "  1 │     b: 2\n" +
+        "    │     ^^^^  tab-indented\n" +
+        "\n" +
+        "  Fix the YAML syntax at application-broken.yml:1:2.\n",
+    );
+  });
+
+  it("escapes control characters so a value cannot break the row layout", () => {
+    const rendered = renderResults(
+      [{ file: "a.yml", redundant: [entry("a\nb", "line1\nline2")] }],
+      check,
+    );
+    expect(rendered.split("\n")[1]).toBe("  1:1  duplicate  a\\nb = line1\\nline2");
+  });
+
+  it("escapes control characters in fix rows", () => {
+    const rendered = renderResults(
+      [{ file: "a.yml", redundant: [entry("a\tb", "x\u0007y")] }],
+      fix,
+    );
+    expect(rendered.split("\n")[1]).toBe("  − a\\tb = x\\x07y");
+  });
+
   it("clamps a cross-line span to the key's line", () => {
     const source = "abc\ndef\n";
     const results: FileResult[] = [

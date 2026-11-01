@@ -37,10 +37,49 @@ export interface RenderOptions {
 
 const INDENT = "  ";
 const BLOCK_SEPARATOR = "\n\n";
+const TAB_WIDTH = 4;
 
 /** Render one entry's value: plain objects and arrays as JSON, everything else as text. */
 function formatValue(value: unknown): string {
   return typeof value === "object" && value !== null ? JSON.stringify(value) : String(value);
+}
+
+/** Escape control characters that would otherwise split or corrupt a row. */
+function sanitize(text: string): string {
+  return text.replace(/\p{Cc}/gu, (char) => {
+    if (char === "\n") {
+      return "\\n";
+    }
+    if (char === "\r") {
+      return "\\r";
+    }
+    if (char === "\t") {
+      return "\\t";
+    }
+    return `\\x${char.charCodeAt(0).toString(16).padStart(2, "0")}`;
+  });
+}
+
+/** Display width of `text` when tabs advance to the next tab stop. */
+function displayWidth(text: string): number {
+  return [...text].reduce(
+    (column, char) => (char === "\t" ? column + TAB_WIDTH - (column % TAB_WIDTH) : column + 1),
+    0,
+  );
+}
+
+/** Display form of a source line, with tabs expanded to the same stops. */
+function expandTabs(text: string): string {
+  return [...text].reduce(
+    (state, char) => {
+      const width = char === "\t" ? TAB_WIDTH - (state.column % TAB_WIDTH) : 1;
+      return {
+        text: state.text + (char === "\t" ? " ".repeat(width) : char),
+        column: state.column + width,
+      };
+    },
+    { text: "", column: 0 },
+  ).text;
 }
 
 function plural(count: number, one: string, many: string): string {
@@ -67,13 +106,17 @@ function spanCarets(text: string, entry: RedundantEntry): string {
     entry.position.endLine > entry.position.line
       ? text.length
       : Math.min(Math.max(entry.position.endColumn - 1, entry.position.column), text.length);
-  return `${" ".repeat(start)}${"^".repeat(Math.max(1, end - start))}`;
+  const startColumn = displayWidth(text.slice(0, start));
+  const endColumn = displayWidth(text.slice(0, end));
+  return `${" ".repeat(startColumn)}${"^".repeat(Math.max(1, endColumn - startColumn))}`;
 }
 
 /** Caret run for a parse error: the rest of the broken line from the reported column. */
 function errorCarets(text: string, column: number): string {
   const start = Math.min(Math.max(column - 1, 0), text.length);
-  return `${" ".repeat(start)}${"^".repeat(Math.max(1, text.length - start))}`;
+  const startColumn = displayWidth(text.slice(0, start));
+  const endColumn = displayWidth(text);
+  return `${" ".repeat(startColumn)}${"^".repeat(Math.max(1, endColumn - startColumn))}`;
 }
 
 function gutter(style: Style, width: number, line: number | undefined, text: string): string {
@@ -84,7 +127,7 @@ function gutter(style: Style, width: number, line: number | undefined, text: str
 function entryRow(style: Style, entry: RedundantEntry, mode: RenderMode): string {
   const suffix = mode === "dry-run" ? style.dim(" (would remove)") : "";
   const position = style.position(`${entry.position.line}:${entry.position.column}`);
-  return `${INDENT}${position}  ${style.duplicate("duplicate")}  ${style.key(entry.path)} = ${formatValue(entry.value)}${suffix}`;
+  return `${INDENT}${position}  ${style.duplicate("duplicate")}  ${style.key(sanitize(entry.path))} = ${sanitize(formatValue(entry.value))}${suffix}`;
 }
 
 /** The entry row plus, when the source is known, its frame and base reference. */
@@ -107,7 +150,7 @@ function entryLines(
     style.position(`:${base.position.line}:${base.position.column}`);
   return [
     row,
-    gutter(style, width, entry.position.line, text),
+    gutter(style, width, entry.position.line, expandTabs(text)),
     gutter(style, width, undefined, `${spanCarets(text, entry)}  ${annotation}`),
   ];
 }
@@ -135,7 +178,7 @@ function fixBlock(result: FileResult, style: Style): string[] | undefined {
     `${style.dim("removed")} ${plural(redundant.length, "duplicate", "duplicates")}`;
   const rows = redundant.map(
     (entry) =>
-      `${INDENT}${style.duplicate("−")} ${style.key(entry.path)} = ${formatValue(entry.value)}`,
+      `${INDENT}${style.duplicate("−")} ${style.key(sanitize(entry.path))} = ${sanitize(formatValue(entry.value))}`,
   );
   return [header, ...rows];
 }
@@ -192,7 +235,7 @@ function errorBlock(result: FileResult, style: Style): string[] {
   const width = gutterWidth([position]);
   return [
     header,
-    gutter(style, width, position.line, text),
+    gutter(style, width, position.line, expandTabs(text)),
     gutter(
       style,
       width,
