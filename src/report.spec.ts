@@ -51,7 +51,7 @@ describe("renderReport", () => {
       "application-prod.yml\n" +
         "  1:1  duplicate  server.tomcat.max-threads = 42\n" +
         "\n" +
-        "✗ 1 duplicate in 1 of 1 profile file\n",
+        "✖ 1 duplicate in 1 of 1 profile file\n",
     );
   });
 
@@ -67,7 +67,7 @@ describe("renderReport", () => {
         "  1:1  duplicate  server.port = 8080\n" +
         "  1:1  duplicate  logging.level = info\n" +
         "\n" +
-        "✗ 2 duplicates in 1 of 1 profile file\n",
+        "✖ 2 duplicates in 1 of 1 profile file\n",
     );
   });
 
@@ -83,7 +83,7 @@ describe("renderReport", () => {
         "  1:1  duplicate  server.port = 8080 (would remove)\n" +
         "  1:1  duplicate  logging.level = info (would remove)\n" +
         "\n" +
-        "✗ 2 duplicates in 1 of 1 profile file (dry run — nothing written)\n",
+        "✖ 2 duplicates in 1 of 1 profile file (dry run — nothing written)\n",
     );
   });
 
@@ -95,7 +95,7 @@ describe("renderReport", () => {
       "application-prod.yml\n" +
         "  1:1  duplicate  server.port = 8080\n" +
         "\n" +
-        "✗ 1 duplicate in 1 of 1 profile file\n",
+        "✖ 1 duplicate in 1 of 1 profile file\n",
     );
   });
 
@@ -113,7 +113,7 @@ describe("renderReport", () => {
         "  1:1  duplicate  s = hello\n" +
         "  1:1  duplicate  f = 1.5\n" +
         "\n" +
-        "✗ 4 duplicates in 1 of 1 profile file\n",
+        "✖ 4 duplicates in 1 of 1 profile file\n",
     );
   });
 
@@ -129,7 +129,7 @@ describe("renderReport", () => {
         "  1:1  duplicate  list = [1,2,3]\n" +
         '  1:1  duplicate  map = {"key":"value"}\n' +
         "\n" +
-        "✗ 2 duplicates in 1 of 1 profile file\n",
+        "✖ 2 duplicates in 1 of 1 profile file\n",
     );
   });
 
@@ -142,7 +142,7 @@ describe("renderReport", () => {
         "  1:1  duplicate  u = undefined\n" +
         "  1:1  duplicate  n = null\n" +
         "\n" +
-        "✗ 2 duplicates in 1 of 1 profile file\n",
+        "✖ 2 duplicates in 1 of 1 profile file\n",
     );
   });
 
@@ -155,7 +155,7 @@ describe("renderReport", () => {
       },
     ];
     expect(renderReport(results, false)).toBe(
-      "✗ application-broken.yml\n" +
+      "✖ application-broken.yml\n" +
         "  bad yaml\n" +
         "\n" +
         "  Fix the YAML in application-broken.yml.\n",
@@ -182,7 +182,7 @@ describe("renderReport", () => {
       "application-prod.yml\n" +
         "  1:1  duplicate  server.port = 8080\n" +
         "\n" +
-        "✗ 1 duplicate in 1 of 2 profile files\n",
+        "✖ 1 duplicate in 1 of 2 profile files\n",
     );
   });
 
@@ -196,13 +196,13 @@ describe("renderReport", () => {
       { file: "application-prod.yml", redundant: [entry("server.port", 8080)] },
     ];
     expect(renderReport(results, true)).toBe(
-      "✗ application-broken.yml\n" +
+      "✖ application-broken.yml\n" +
         "  bad yaml\n" +
         "\n" +
         "application-prod.yml\n" +
         "  1:1  duplicate  server.port = 8080 (would remove)\n" +
         "\n" +
-        "✗ 1 duplicate in 1 of 2 profile files (dry run — nothing written), 1 error\n" +
+        "✖ 1 duplicate in 1 of 2 profile files (dry run — nothing written), 1 error\n" +
         "\n" +
         "  Fix the YAML in application-broken.yml.\n",
     );
@@ -218,7 +218,7 @@ describe("renderReport", () => {
       "c.yml\n  1:1  duplicate  x = 1\n\n" +
         "a.yml\n  1:1  duplicate  y = 2\n\n" +
         "b.yml\n  1:1  duplicate  z = 3\n\n" +
-        "✗ 3 duplicates in 3 of 3 profile files\n",
+        "✖ 3 duplicates in 3 of 3 profile files\n",
     );
   });
 
@@ -237,10 +237,10 @@ describe("renderReport", () => {
         "  1:1  duplicate  q = two\n" +
         "  1:1  duplicate  r = [3]\n" +
         "\n" +
-        "✗ z-broken.yml\n" +
+        "✖ z-broken.yml\n" +
         "  nope\n" +
         "\n" +
-        "✗ 3 duplicates in 1 of 3 profile files, 1 error\n" +
+        "✖ 3 duplicates in 1 of 3 profile files, 1 error\n" +
         "\n" +
         "  Fix the YAML in z-broken.yml.\n",
     );

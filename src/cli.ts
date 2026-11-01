@@ -126,7 +126,7 @@ export async function runCli(argv: string[]): Promise<number> {
   const options: Options = program.opts<Options>();
   if (options.dryRun && !options.fix) {
     process.stderr.write(
-      `${stderrStyle.error("✗")} ${stderrStyle.error("--dry-run requires --fix")}\n` +
+      `${stderrStyle.error("✖")} ${stderrStyle.error("--dry-run requires --fix")}\n` +
         `\n${usageHint(stderrStyle)}\n`,
     );
     return 1;

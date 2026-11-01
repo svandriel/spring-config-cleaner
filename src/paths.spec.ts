@@ -21,11 +21,21 @@ describe("flattenDocument", () => {
     const entries = flattenDocument(parseDocument(source), 0, source);
     expect(entries.map((e) => e.path)).toEqual(["spring.application.name", "other.key.sub"]);
     expect(entries.map((e) => e.value)).toEqual(["app", true]);
-    expect(entries[0]!.words).toEqual([["spring"], ["application"], ["name"]]);
+    const firstEntry = entries[0];
+    if (!firstEntry) {
+      expect.unreachable("first entry should exist");
+    }
+    expect(firstEntry.words).toEqual([["spring"], ["application"], ["name"]]);
   });
   it("spans the whole explicit dotted key through its value", () => {
     const source = "spring.application.name: app\n";
-    expect(flattenDocument(parseDocument(source), 0, source)[0]!.position).toEqual({
+    const entries = flattenDocument(parseDocument(source), 0, source);
+    expect(entries).toHaveLength(1);
+    const first = entries[0];
+    if (!first) {
+      expect.unreachable("first entry should exist");
+    }
+    expect(first.position).toEqual({
       line: 1,
       column: 1,
       endLine: 1,

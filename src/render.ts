@@ -219,7 +219,7 @@ function errorHeader(
   error: FileError,
   position: { line: number; column: number } | undefined,
 ): string {
-  const marker = style.error("✗");
+  const marker = style.error("✖");
   if (position === undefined) {
     return `${marker} ${style.path(result.file)}`;
   }
@@ -294,7 +294,7 @@ function summaryLine(results: FileResult[], mode: RenderMode, style: Style): str
       plural(filesWithDuplicates, "file", "files");
     return errors === 0
       ? style.success(`✓ ${removed}.`)
-      : `${style.error("✗")} ${style.success(removed)}${errorSuffix}`;
+      : `${style.error("✖")} ${style.success(removed)}${errorSuffix}`;
   }
   const files = results.length;
   const duplicateSummary = style.duplicate(
@@ -302,7 +302,7 @@ function summaryLine(results: FileResult[], mode: RenderMode, style: Style): str
       `${filesWithDuplicates} of ${plural(files, "profile file", "profile files")}`,
   );
   const suffix = mode === "dry-run" ? style.dim(" (dry run — nothing written)") : "";
-  return `${style.error("✗")} ${duplicateSummary}${suffix}${errorSuffix}`;
+  return `${style.error("✖")} ${duplicateSummary}${suffix}${errorSuffix}`;
 }
 
 function hintLines(hints: Hint[], style: Style): string[] {

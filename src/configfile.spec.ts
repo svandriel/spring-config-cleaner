@@ -9,11 +9,19 @@ describe("parseConfigFile", () => {
       "spring:\n  config:\n    activate:\n      on-profile: prod\nmy:\n  prop: 1\n",
     );
     expect(file.documents).toHaveLength(1);
-    expect(documentActivation(file.documents[0]!.doc)).toBe("prod");
+    const firstDoc = file.documents[0];
+    if (!firstDoc) {
+      expect.unreachable("first document should exist");
+    }
+    expect(documentActivation(firstDoc.doc)).toBe("prod");
   });
   it("extracts no activation condition for a profile-less document", () => {
     const file = parseConfigFile("application.yml", "my:\n  prop: 1\n");
-    expect(documentActivation(file.documents[0]!.doc)).toBeUndefined();
+    const firstDoc = file.documents[0];
+    if (!firstDoc) {
+      expect.unreachable("first document should exist");
+    }
+    expect(documentActivation(firstDoc.doc)).toBeUndefined();
   });
   it("halts on multi-document files", () => {
     try {
@@ -30,7 +38,11 @@ describe("parseConfigFile", () => {
       "application.yml",
       "spring:\n  profiles:\n  - a\n  - b\nvalue: 1\n",
     );
-    expect(documentActivation(file.documents[0]!.doc)).toEqual(["a", "b"]);
+    const firstDoc = file.documents[0];
+    if (!firstDoc) {
+      expect.unreachable("first document should exist");
+    }
+    expect(documentActivation(firstDoc.doc)).toEqual(["a", "b"]);
   });
   it("throws ConfigError with the file path on malformed YAML", () => {
     try {
@@ -61,7 +73,12 @@ describe("parseConfigFile", () => {
     const doc = file.documents[0]?.doc;
     const entries = doc === undefined ? [] : flattenDocument(doc, 0, file.source);
     expect(file.source).toBe("my:\n  value: 1\n");
-    expect(entries[0]?.position).toEqual({ line: 2, column: 3, endLine: 2, endColumn: 11 });
+    expect(entries[0]?.position).toEqual({
+      line: 2,
+      column: 3,
+      endLine: 2,
+      endColumn: 11,
+    });
   });
   it("points multi-document errors at the second document", () => {
     try {
