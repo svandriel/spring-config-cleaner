@@ -33,6 +33,20 @@ describe("checkConfigs", () => {
     expect(result.files).toHaveLength(1);
     expect(result.files[0]?.file).toBe(join(dir, "application-prod.yml"));
     expect(result.files[0]?.redundant[0]?.path).toBe("myApp.baseKey");
+    expect(result.files[0]?.source).toBe(PROFILE);
+  });
+
+  it("reports the clashing file path for a discovery error", async () => {
+    const dir = await fixture({
+      "application.yml": BASE,
+      "application-prod.yml": PROFILE,
+      "application-prod.yaml": PROFILE,
+    });
+
+    const result = await checkConfigs(dir);
+
+    expect(result.files[0]?.file).toBe(join(dir, "application-prod.yml"));
+    expect(result.files[0]?.error?.message).not.toContain("application-prod.yml");
   });
 
   it("yields an errored FileResult naming the directory when no base exists", async () => {

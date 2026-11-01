@@ -6,8 +6,9 @@
  * same Spring property can be compared (relaxed-binding style) later on.
  */
 
-import { type Document, isAlias, isMap, isScalar, isSeq, type YAMLMap } from "yaml";
+import { type Document, isAlias, isMap, isNode, isScalar, isSeq, type YAMLMap } from "yaml";
 import { splitWords } from "./keys.ts";
+import { lineIndex, type SourcePosition } from "./position.ts";
 
 /** A single leaf value found while flattening a document. */
 export interface FlatEntry {
@@ -19,6 +20,8 @@ export interface FlatEntry {
   value: unknown;
   /** Index of the source document within the parsed set. */
   documentIndex: number;
+  /** Span from the start of the key through the end of its value. */
+  position: SourcePosition;
 }
 
 /**
@@ -30,6 +33,7 @@ function addLeaf(
   segments: string[],
   doc: Document,
   documentIndex: number,
+  position: SourcePosition,
   out: FlatEntry[],
 ): void {
   const leaf = isSeq(value)
@@ -44,6 +48,7 @@ function addLeaf(
     words: segments.map(splitWords),
     value: leaf,
     documentIndex,
+    position,
   });
 }
 
@@ -57,6 +62,7 @@ function walkMap(
   segments: string[],
   doc: Document,
   documentIndex: number,
+  index: ReturnType<typeof lineIndex>,
   out: FlatEntry[],
 ): void {
   for (const pair of map.items) {
@@ -68,6 +74,9 @@ function walkMap(
     const nextSegments = [...segments, ...key.split(".")];
 
     let value = pair.value;
+    const start = isNode(keyNode) ? (keyNode.range?.[0] ?? 0) : 0;
+    const keyEnd = isNode(keyNode) ? (keyNode.range?.[1] ?? start) : start;
+    const spanEnd = isNode(value) ? (value.range?.[1] ?? keyEnd) : keyEnd;
     if (isAlias(value)) {
       value = value.resolve(doc);
     }
@@ -75,9 +84,9 @@ function walkMap(
       if (value.items.length === 0) {
         continue;
       }
-      walkMap(value, nextSegments, doc, documentIndex, out);
+      walkMap(value, nextSegments, doc, documentIndex, index, out);
     } else {
-      addLeaf(value, nextSegments, doc, documentIndex, out);
+      addLeaf(value, nextSegments, doc, documentIndex, index.position(start, spanEnd), out);
     }
   }
 }
@@ -87,12 +96,13 @@ function walkMap(
  * and dotted keys collapse to the same dotted `path`; a value that is an empty
  * mapping is skipped, while sequences, scalars and nulls are leaves carrying
  * their JS value (aliases resolved via the `yaml` package's node resolution).
+ * `source` is the text the document was parsed from, used for positions.
  */
-export function flattenDocument(doc: Document, documentIndex: number): FlatEntry[] {
+export function flattenDocument(doc: Document, documentIndex: number, source: string): FlatEntry[] {
   const entries: FlatEntry[] = [];
   const contents = doc.contents;
   if (isMap(contents) && contents.items.length > 0) {
-    walkMap(contents, [], doc, documentIndex, entries);
+    walkMap(contents, [], doc, documentIndex, lineIndex(source), entries);
   }
   return entries;
 }

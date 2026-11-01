@@ -35,6 +35,43 @@ Options:
 - `--style <kebab|camel|snake|preserve>` — key style for surviving keys (default `kebab`)
 - `--structure <preserve|nested|dotted>` — layout of the rewritten files (default `preserve`)
 
+### Output
+
+Findings are diagnostics: a file header with a clickable `line:column` for each
+finding, the offending source line with a caret run under the redundant entry,
+and the base location that already defines the same value. Error headers include
+the full `path:line:column`.
+
+```text
+/srv/app/config/application-prod.yml
+  2:1  duplicate  my.app.maxThreads = 8
+  2 │ my.app.maxThreads: 8
+    │ ^^^^^^^^^^^^^^^^^^^^  already defined in /srv/app/config/application.yml:7:5
+
+✖ 2 duplicates in 2 of 2 profile files
+
+  Remove them:    spring-config-cleaner --fix /srv/app/config
+  Preview first:  spring-config-cleaner --fix --dry-run /srv/app/config
+```
+
+`--fix --dry-run` keeps the frames and marks each entry `(would remove)`;
+`--fix` prints the entries it removed and how to verify:
+
+```text
+✓ /srv/app/config/application-prod.yml  removed 1 duplicate
+  − my.app.maxThreads = 8
+
+✓ Removed 2 duplicates from 2 files.
+
+  Verify:  spring-config-cleaner --check /srv/app/config
+```
+
+YAML parse errors show the failing position and a frame; a clean run prints a
+single green checkmark. Colour is applied only when the destination is a
+colour-capable terminal, so piped and CI output stays plain text. `FORCE_COLOR`
+overrides that check, while `NO_COLOR`, `TERM=dumb` and non-TTY destinations
+keep the output plain.
+
 ### Library
 
 ```ts

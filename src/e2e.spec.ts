@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -45,7 +45,11 @@ function runCli(dir: string, args: string[] = []): RunResult {
       stderr: "",
     };
   } catch (error) {
-    const failure = error as { status?: number; stdout?: string; stderr?: string };
+    const failure = error as {
+      status?: number;
+      stdout?: string;
+      stderr?: string;
+    };
     return {
       status: failure.status ?? 1,
       stdout: failure.stdout ?? "",
@@ -55,7 +59,27 @@ function runCli(dir: string, args: string[] = []): RunResult {
 }
 
 function pathsOf(source: string): string[] {
-  return flattenDocument(parseDocument(source), 0).map((entry) => entry.path);
+  return flattenDocument(parseDocument(source), 0, source).map((entry) => entry.path);
+}
+
+/** Classic fixture report: two profiles repeat the base `maxThreads` value. */
+function classicReport(dir: string): string {
+  const base = join(dir, "application.yml");
+  const frame = (line: number) =>
+    `  ${line} │ my.app.maxThreads: 8\n` +
+    "    │ ^^^^^^^^^^^^^^^^^^^^  " +
+    `already defined in ${base}:7:5\n`;
+  return (
+    `${join(dir, "application-prod.yml")}\n` +
+    "  2:1  duplicate  my.app.maxThreads = 8\n" +
+    frame(2) +
+    "\n" +
+    `${join(dir, "application-test.yml")}\n` +
+    "  1:1  duplicate  my.app.maxThreads = 8\n" +
+    frame(1) +
+    "\n" +
+    "✖ 2 duplicates in 2 of 2 profile files\n"
+  );
 }
 
 describe("e2e CLI", () => {
@@ -66,9 +90,12 @@ describe("e2e CLI", () => {
     const result = runCli(dir);
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("my.app.maxThreads = 8");
-    expect(result.stdout).toContain(`1 duplicate in ${join(dir, "application-prod.yml")}`);
-    expect(result.stdout).toContain(`1 duplicate in ${join(dir, "application-test.yml")}`);
+    expect(result.stdout).toBe(
+      `${classicReport(dir)}\n` +
+        `  Remove them:    spring-config-cleaner --fix ${dir}\n` +
+        `  Preview first:  spring-config-cleaner --fix --dry-run ${dir}\n`,
+    );
+    expect(result.stdout).not.toContain("\u001b[");
     expect(await snapshot(dir)).toEqual(before);
   });
 
@@ -79,7 +106,7 @@ describe("e2e CLI", () => {
     const result = runCli(dir, ["--check", "--style", "kebab"]);
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("my.app.maxThreads = 8");
+    expect(result.stdout).toContain(classicReport(dir));
     expect(await snapshot(dir)).toEqual(before);
   });
 
@@ -90,7 +117,12 @@ describe("e2e CLI", () => {
     const result = runCli(dir, ["--fix", "--dry-run"]);
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("(would remove)");
+    const preview = classicReport(dir).replaceAll(" = 8\n", " = 8 (would remove)\n");
+    expect(result.stdout).toBe(
+      `${preview.slice(0, -1)} (dry run — nothing written)\n` +
+        "\n" +
+        `  Apply:  spring-config-cleaner --fix ${dir}\n`,
+    );
     expect(await snapshot(dir)).toEqual(before);
   });
 
@@ -101,6 +133,17 @@ describe("e2e CLI", () => {
     const result = runCli(dir, ["--fix", "--style", "kebab", "--structure", "preserve"]);
 
     expect(result.status).toBe(0);
+    expect(result.stdout).toBe(
+      `✓ ${join(dir, "application-prod.yml")}  removed 1 duplicate\n` +
+        "  − my.app.maxThreads = 8\n" +
+        "\n" +
+        `✓ ${join(dir, "application-test.yml")}  removed 1 duplicate\n` +
+        "  − my.app.maxThreads = 8\n" +
+        "\n" +
+        "✓ Removed 2 duplicates from 2 files.\n" +
+        "\n" +
+        `  Verify:  spring-config-cleaner --check ${dir}\n`,
+    );
     const prod = await readFile(join(dir, "application-prod.yml"), "utf8");
     expect(pathsOf(prod)).toEqual(["my.app.max-connections", "spring.application.name"]);
     expect(prod).toContain("# overridden intentionally");
@@ -125,10 +168,28 @@ describe("e2e CLI", () => {
     const result = runCli(dir);
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe("No duplicates found.\n");
+    expect(result.stdout).toBe("✓ No duplicates found.\n");
     expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(before["application.yml"]);
     expect(await readFile(join(dir, "application-dev.yml"), "utf8")).toBe(
       before["application-dev.yml"],
     );
+  });
+
+  it("shows a YAML parse error with its frame and a syntax hint", async () => {
+    const dir = await copyFixture("clean");
+    const broken = join(dir, "application-broken.yml");
+    await writeFile(broken, "a: 1\n b: 2\n");
+
+    const result = runCli(dir);
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe(
+      `✖ ${broken}:1:4  invalid YAML\n` +
+        "  1 │ a: 1\n" +
+        "    │    ^  Nested mappings are not allowed in compact mappings\n" +
+        "\n" +
+        `  Fix the YAML syntax at ${broken}:1:4.\n`,
+    );
+    expect(result.stdout).not.toContain("\u001b[");
   });
 });

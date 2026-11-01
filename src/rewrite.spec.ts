@@ -10,6 +10,11 @@ const entry = (path: string, words: string[][], value: number): RedundantEntry =
   words,
   value,
   documentIndex: 0,
+  position: { line: 1, column: 1, endLine: 1, endColumn: 2 },
+  base: {
+    file: "application.yml",
+    position: { line: 1, column: 1, endLine: 1, endColumn: 2 },
+  },
 });
 
 describe("rewriteConfigFile (preserve structure)", () => {
@@ -26,7 +31,7 @@ describe("rewriteConfigFile (preserve structure)", () => {
       [entry("spring.datasource.maxThreads", [["spring"], ["datasource"], ["max", "Threads"]], 8)],
       { style: "kebab", structure: "preserve" },
     );
-    const paths = flattenDocument(parseDocument(result), 0).map((e) => e.path);
+    const paths = flattenDocument(parseDocument(result), 0, result).map((e) => e.path);
     expect(paths).toContain("spring.datasource.idle-timeout");
     expect(paths).not.toContain("spring.datasource.maxthreads");
     expect(result).toContain("# connection pool");
@@ -38,7 +43,7 @@ describe("rewriteConfigFile (preserve structure)", () => {
       [entry("outer.inner.kill", [["outer"], ["inner"], ["kill"]], 1)],
       { style: "preserve", structure: "preserve" },
     );
-    expect(flattenDocument(parseDocument(result), 0)).toEqual([]);
+    expect(flattenDocument(parseDocument(result), 0, result)).toEqual([]);
   });
   it("removes the first flatten-order occurrence, keeping a later override", () => {
     const result = rewriteConfigFile(
@@ -46,9 +51,9 @@ describe("rewriteConfigFile (preserve structure)", () => {
       [entry("my.app.maxThreads", [["my"], ["app"], ["max", "Threads"]], 8)],
       { style: "preserve", structure: "preserve" },
     );
-    expect(flattenDocument(parseDocument(result), 0).map((e) => [e.path, e.value])).toEqual([
-      ["my.app.maxThreads", 9],
-    ]);
+    expect(flattenDocument(parseDocument(result), 0, result).map((e) => [e.path, e.value])).toEqual(
+      [["my.app.maxThreads", 9]],
+    );
   });
   it("removes a dotted first occurrence, keeping a later nested override", () => {
     const result = rewriteConfigFile(
@@ -56,9 +61,9 @@ describe("rewriteConfigFile (preserve structure)", () => {
       [entry("my.app.maxThreads", [["my"], ["app"], ["max", "Threads"]], 8)],
       { style: "preserve", structure: "preserve" },
     );
-    expect(flattenDocument(parseDocument(result), 0).map((e) => [e.path, e.value])).toEqual([
-      ["my.app.maxThreads", 9],
-    ]);
+    expect(flattenDocument(parseDocument(result), 0, result).map((e) => [e.path, e.value])).toEqual(
+      [["my.app.maxThreads", 9]],
+    );
   });
   it("keeps parents that carry comments", () => {
     const result = rewriteConfigFile(
@@ -77,7 +82,7 @@ describe("rewriteConfigFile (structure conformance)", () => {
       style: "kebab",
       structure: "dotted",
     });
-    expect(flattenDocument(parseDocument(result), 0).map((e) => e.path)).toEqual([
+    expect(flattenDocument(parseDocument(result), 0, result).map((e) => e.path)).toEqual([
       "spring.application.name",
     ]);
     expect(result).toContain("# top");
@@ -89,7 +94,7 @@ describe("rewriteConfigFile (structure conformance)", () => {
       style: "kebab",
       structure: "nested",
     });
-    expect(flattenDocument(parseDocument(result), 0).map((e) => e.path)).toEqual([
+    expect(flattenDocument(parseDocument(result), 0, result).map((e) => e.path)).toEqual([
       "spring.application.name",
     ]);
     // Discriminating: the dotted key must be gone (beyond the brief's asserts).
@@ -102,7 +107,7 @@ describe("rewriteConfigFile (structure conformance)", () => {
     });
     // Documented conflict policy: the deeper subtree wins; the shallow leaf is
     // dropped, though its comments survive (hoisted).
-    expect(flattenDocument(parseDocument(result), 0).map((e) => e.path)).toEqual(["a.b.c"]);
+    expect(flattenDocument(parseDocument(result), 0, result).map((e) => e.path)).toEqual(["a.b.c"]);
     expect(result).toContain("# shallow");
   });
   it("keeps the deep subtree on a prefix collision, deep leaf first", () => {
@@ -110,7 +115,7 @@ describe("rewriteConfigFile (structure conformance)", () => {
       style: "preserve",
       structure: "nested",
     });
-    expect(flattenDocument(parseDocument(result), 0).map((e) => e.path)).toEqual(["a.b.c"]);
+    expect(flattenDocument(parseDocument(result), 0, result).map((e) => e.path)).toEqual(["a.b.c"]);
   });
   it("keeps ancestor comments when a subtree empties without survivors", () => {
     const source = [
@@ -135,7 +140,7 @@ describe("rewriteConfigFile (structure conformance)", () => {
       style: "preserve",
       structure: "nested",
     });
-    const flattened = flattenDocument(parseDocument(result), 0);
+    const flattened = flattenDocument(parseDocument(result), 0, result);
     expect(flattened.map((e) => canonicalKey(e.path))).toEqual(["a.b"]);
     expect(flattened[0]?.value).toBe(2);
   });
@@ -150,7 +155,7 @@ describe("rewriteConfigFile comment salvage (fix round 1)", () => {
     );
     expect(result).toContain("# guard");
     expect(result).toContain("alpha: 1 # guard");
-    expect(flattenDocument(parseDocument(result), 0).map((leaf) => leaf.path)).toEqual([
+    expect(flattenDocument(parseDocument(result), 0, result).map((leaf) => leaf.path)).toEqual([
       "outer.alpha",
     ]);
   });
@@ -190,6 +195,6 @@ describe("rewriteConfigFile comment salvage (fix round 1)", () => {
     );
     expect(result).toContain("profiles");
     expect(result).toBe("spring:\n  profiles: {}\n");
-    expect(flattenDocument(parseDocument(result), 0)).toEqual([]);
+    expect(flattenDocument(parseDocument(result), 0, result)).toEqual([]);
   });
 });
