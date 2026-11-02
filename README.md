@@ -1,6 +1,8 @@
 # spring-config-cleaner
 
-Cleans Spring configuration YAML files.
+Find and remove duplicate entries in Spring profile YAML while keeping the
+configuration's effective values unchanged. Check or fix files from the CLI,
+preview changes before writing, or use the TypeScript API in your own tools.
 
 ## Requirements
 
