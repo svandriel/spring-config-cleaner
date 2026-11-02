@@ -31,18 +31,20 @@ export * from "./values.ts";
 
 /** Check/fix outcome across all profile files of a config directory. */
 export interface CheckResult {
-  /** One result per discovered profile file, in profile-name order. */
+  /** One result per discovered profile file, plus a base-format error when applicable. */
   files: FileResult[];
   /** Redundant entries counted across all profile files. */
   duplicates: number;
 }
 
-/** Options for `fixConfigs`: key restyle, structural layout, dry-run. */
+/** Options for `fixConfigs`: key restyle, structural layout, optional base formatting, dry-run. */
 export interface FixOptions {
   /** Style surviving key segments are re-rendered in. */
   style: KeyStyle;
   /** Structural layout of the rewritten files. */
   structure: Structure;
+  /** Also rewrite the base application file using `style` and `structure`. */
+  base?: boolean;
   /** Compute the rewrite but never write to disk. */
   dryRun?: boolean;
 }
@@ -90,6 +92,7 @@ function errorPath(fallback: string, error: unknown): string {
 async function analyzeConfigs(
   dir: string,
   apply?: (profile: ConfigFile, redundant: RedundantEntry[]) => Promise<void>,
+  applyBase?: (base: ConfigFile) => Promise<void>,
 ): Promise<CheckResult> {
   let discovered: DiscoveryResult;
   try {
@@ -98,6 +101,20 @@ async function analyzeConfigs(
     return errorResult(errorPath(dir, err), err);
   }
   const { base, profiles } = discovered;
+
+  let baseFailure: FileResult | undefined;
+  if (applyBase !== undefined) {
+    try {
+      await applyBase(base);
+    } catch (err) {
+      baseFailure = {
+        file: errorPath(base.path, err),
+        redundant: [],
+        source: base.source,
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
+    }
+  }
 
   const files = await Promise.all(
     profiles.map(async (profile): Promise<FileResult> => {
@@ -123,7 +140,7 @@ async function analyzeConfigs(
   );
 
   return {
-    files,
+    files: [...(baseFailure === undefined ? [] : [baseFailure]), ...files],
     duplicates: files.reduce((count, file) => count + file.redundant.length, 0),
   };
 }
@@ -140,18 +157,30 @@ export async function checkConfigs(dir: string): Promise<CheckResult> {
 /**
  * Fix `dir`: like `checkConfigs`, but every profile file with redundant
  * entries is rewritten (key restyle and structural layout per `options`) and
- * written back unless `dryRun`. Files without duplicates and the base file
- * are never written.
+ * written back unless `dryRun`. Files without duplicates are never written;
+ * the base file is rewritten only when `options.base` is true.
  */
 export async function fixConfigs(dir: string, options: FixOptions): Promise<FixResult> {
-  return analyzeConfigs(dir, async (profile, redundant) => {
-    if (options.dryRun === true) {
-      return;
-    }
-    const rewritten = rewriteConfigFile(profile.source, redundant, {
-      style: options.style,
-      structure: options.structure,
-    });
-    await writeFile(profile.path, rewritten, "utf8");
-  });
+  return analyzeConfigs(
+    dir,
+    async (profile, redundant) => {
+      if (options.dryRun === true) {
+        return;
+      }
+      const rewritten = rewriteConfigFile(profile.source, redundant, {
+        style: options.style,
+        structure: options.structure,
+      });
+      await writeFile(profile.path, rewritten, "utf8");
+    },
+    options.base === true && options.dryRun !== true
+      ? async (base) => {
+          const rewritten = rewriteConfigFile(base.source, [], {
+            style: options.style,
+            structure: options.structure,
+          });
+          await writeFile(base.path, rewritten, "utf8");
+        }
+      : undefined,
+  );
 }

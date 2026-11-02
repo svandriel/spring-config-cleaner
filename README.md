@@ -25,6 +25,9 @@ spring-config-cleaner [dir]
 # Fix: rewrite the profile files, removing duplicate entries
 spring-config-cleaner --fix [dir]
 
+# Also rewrite the base application.yml using the selected style and structure
+spring-config-cleaner --fix --base --style kebab --structure nested [dir]
+
 # Preview a fix without writing anything
 spring-config-cleaner --fix --dry-run [dir]
 ```
@@ -33,6 +36,8 @@ Options:
 
 - `--check` — report duplicates without writing (default mode; mutually exclusive with `--fix`)
 - `--fix` — remove the duplicate entries from the profile files
+- `--base` — also rewrite the base `application.yml` with the selected style and structure
+  (requires `--fix`; omitted by default)
 - `--dry-run` — compute the fix but never write (requires `--fix`)
 - `--style <kebab|camel|snake|preserve>` — key style for surviving keys (default `preserve`)
 - `--structure <preserve|nested|dotted|compact>` — layout of the rewritten files (default `preserve`)
@@ -89,6 +94,7 @@ console.log(check.duplicates, check.files);
 await fixConfigs("./src/main/resources", {
   style: "kebab",
   structure: "dotted",
+  base: true,
   dryRun: false,
 });
 ```

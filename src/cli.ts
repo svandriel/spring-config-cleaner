@@ -19,6 +19,7 @@ const COMMAND = "spring-config-cleaner";
 interface Options {
   fix: boolean;
   dryRun: boolean;
+  base: boolean;
   style: KeyStyle;
   structure: Structure;
 }
@@ -46,6 +47,7 @@ function directoryWord(dir: string): string {
 function commandFor(flags: string[], dir: string, options: Options): string {
   const rewritten = [
     ...flags,
+    ...(options.base && flags.includes("--fix") ? ["--base"] : []),
     ...(options.style === DEFAULT_STYLE ? [] : ["--style", options.style]),
     ...(options.structure === DEFAULT_STRUCTURE ? [] : ["--structure", options.structure]),
     directoryWord(dir),
@@ -95,6 +97,7 @@ export async function runCli(argv: string[]): Promise<number> {
     .exitOverride()
     .argument("[dir]", "config directory to process", process.cwd())
     .option("--fix", "rewrite the profile files, removing duplicates", false)
+    .option("--base", "also rewrite the base application.yml file", false)
     .addOption(
       new Option("--check", "report duplicates without writing (default)").conflicts("fix"),
     )
@@ -131,6 +134,13 @@ export async function runCli(argv: string[]): Promise<number> {
     );
     return 1;
   }
+  if (options.base && !options.fix) {
+    process.stderr.write(
+      `${stderrStyle.error("✖")} ${stderrStyle.error("--base requires --fix")}\n` +
+        `\n${usageHint(stderrStyle)}\n`,
+    );
+    return 1;
+  }
 
   // Argument defaults live in processedArgs (not opts); the commander-declared
   // default is process.cwd().
@@ -142,6 +152,7 @@ export async function runCli(argv: string[]): Promise<number> {
     ? await fixConfigs(dir, {
         style: options.style,
         structure: options.structure,
+        base: options.base,
         dryRun: options.dryRun,
       })
     : await checkConfigs(dir);

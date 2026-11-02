@@ -148,6 +148,16 @@ describe("runCli", () => {
     expect(text).toContain("--help");
   });
 
+  it("fails with a styled message and hint when --base is used without --fix", async () => {
+    silenceOutput();
+    const err = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const dir = await cleanFixture();
+    expect(await runCli([dir, "--base"])).toBe(1);
+    const text = written(err);
+    expect(text).toContain("--base requires --fix");
+    expect(text).toContain("--help");
+  });
+
   it("preserves surviving key spelling by default when fixing duplicates", async () => {
     silenceOutput();
     const dir = await duplicateFixture();

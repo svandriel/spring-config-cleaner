@@ -143,6 +143,36 @@ describe("e2e CLI", () => {
     },
   );
 
+  it("formats the base file with the selected structure and style when --base is set", async () => {
+    const dir = await copyFixture();
+    await writeFile(join(dir, "application.yml"), "myApp:\n  camelCaseKey: value\n");
+
+    const result = runCli(dir, ["--fix", "--base", "--structure", "dotted", "--style", "kebab"]);
+
+    expect(result.status).toBe(0);
+    expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(
+      "my-app.camel-case-key: value\n",
+    );
+  });
+
+  it("does not format the base file in a --base dry run", async () => {
+    const dir = await copyFixture();
+    const base = await readFile(join(dir, "application.yml"), "utf8");
+
+    const result = runCli(dir, [
+      "--fix",
+      "--dry-run",
+      "--base",
+      "--structure",
+      "dotted",
+      "--style",
+      "kebab",
+    ]);
+
+    expect(result.status).toBe(0);
+    expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(base);
+  });
+
   it("reports a clean fixture and leaves it untouched", async () => {
     const dir = await copyFixture("clean");
     const before = {
