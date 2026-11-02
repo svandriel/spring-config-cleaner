@@ -18,6 +18,9 @@ describe("splitWords", () => {
     expect(splitWords("max-Threads")).toEqual(["max", "Threads"]);
     expect(splitWords("db_userId")).toEqual(["db", "user", "Id"]);
   });
+  it("keeps uppercase acronym runs together", () => {
+    expect(splitWords("customCRMFlag")).toEqual(["custom", "CRM", "Flag"]);
+  });
 });
 
 describe("renderSegment", () => {
@@ -25,6 +28,9 @@ describe("renderSegment", () => {
     expect(renderSegment(["user", "Id", "name"], "kebab")).toBe("user-id-name");
     expect(renderSegment(["user", "Id", "name"], "camel")).toBe("userIdName");
     expect(renderSegment(["user", "Id", "name"], "snake")).toBe("user_id_name");
+  });
+  it("renders acronym runs as one lowercase word in kebab case", () => {
+    expect(renderSegment(splitWords("customCRMFlag"), "kebab")).toBe("custom-crm-flag");
   });
 });
 

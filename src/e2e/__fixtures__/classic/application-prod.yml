@@ -2,6 +2,7 @@
 my.app:
   maxThreads: 8
 my.app.maxConnections: 100
+customCRMFlag: true
 spring:
   application:
     name: demo-prod # overridden intentionally

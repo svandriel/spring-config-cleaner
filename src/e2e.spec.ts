@@ -143,7 +143,11 @@ describe("e2e CLI", () => {
         `  Verify:  spring-config-cleaner --check ${dir}\n`,
     );
     const prod = await readFile(join(dir, "application-prod.yml"), "utf8");
-    expect(pathsOf(prod)).toEqual(["my.app.max-connections", "spring.application.name"]);
+    expect(pathsOf(prod)).toEqual([
+      "my.app.max-connections",
+      "custom-crm-flag",
+      "spring.application.name",
+    ]);
     expect(prod).toContain("# overridden intentionally");
     expect(prod).toContain("demo-prod");
     // Comment preservation re-homes the removed entry's comment onto the next key.

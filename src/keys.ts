@@ -10,7 +10,7 @@
 export type KeyStyle = "kebab" | "camel" | "snake" | "preserve";
 
 /** Word tokenization: each `-`/`_`-separated part is split further on camel boundaries. */
-const WORD_RE = /([A-Z][a-z0-9]*|[a-z0-9]+)/gu;
+const WORD_RE = /([A-Z]+[0-9]*(?=[A-Z][a-z]|$)|[A-Z]?[a-z0-9]+)/gu;
 
 /**
  * Canonical form of a key: lowercased with all `-` and `_` removed, `.` kept
