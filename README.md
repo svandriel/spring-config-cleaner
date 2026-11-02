@@ -65,8 +65,8 @@ full `path:line:column` in their headers.
 ```
 
 `--fix --dry-run` keeps the frames and marks each entry `(would remove)`;
-with `--base`, it also prints the selected style and structure plus the
-resulting `application.yml` content without writing it.
+with `--base`, it also reports at the end that `application.yml` would be
+updated using the selected style and structure, without writing the file.
 `--fix` prints the entries it removed and how to verify:
 
 ```text

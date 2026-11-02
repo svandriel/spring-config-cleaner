@@ -187,17 +187,10 @@ function fixBlock(result: FileResult, style: Style): string[] | undefined {
   return [header, ...rows];
 }
 
-function basePreviewBlock(preview: BaseRewritePreview, style: Style): string[] {
-  const lines = preview.output.split(/\r?\n/u);
-  if (lines.at(-1) === "") {
-    lines.pop();
-  }
-  return [
-    `${style.path(preview.file)}  ${style.dim("(would format)")}`,
-    `${INDENT}${style.dim(`Style: ${preview.style}; structure: ${preview.structure}`)}`,
-    `${INDENT}${style.dim("Resulting YAML:")}`,
-    ...lines.map((line) => `${INDENT}${INDENT}${sanitize(line)}`),
-  ];
+function basePreviewLine(preview: BaseRewritePreview, style: Style): string {
+  return `${style.success("Base config:")} ${style.path(preview.file)} ${style.dim(
+    `(would be updated; style: ${preview.style}; structure: ${preview.structure})`,
+  )}`;
 }
 
 /** YAML parse position carried by a config error, if any. */
@@ -333,16 +326,13 @@ function hintLines(hints: Hint[], style: Style): string[] {
 
 export function renderResults(results: FileResult[], options: RenderOptions): string {
   const { mode, style } = options;
-  const blocks = [
-    ...(options.basePreview === undefined ? [] : [basePreviewBlock(options.basePreview, style)]),
-    ...results.flatMap((result) => {
-      if (result.error !== undefined) {
-        return [errorBlock(result, style)];
-      }
-      const block = mode === "fix" ? fixBlock(result, style) : findingBlock(result, mode, style);
-      return block === undefined ? [] : [block];
-    }),
-  ];
+  const blocks = results.flatMap((result) => {
+    if (result.error !== undefined) {
+      return [errorBlock(result, style)];
+    }
+    const block = mode === "fix" ? fixBlock(result, style) : findingBlock(result, mode, style);
+    return block === undefined ? [] : [block];
+  });
   const summary = summaryLine(results, mode, style);
   const hints = [
     ...results.flatMap((result) => {
@@ -351,7 +341,7 @@ export function renderResults(results: FileResult[], options: RenderOptions): st
     }),
     ...hintLines(options.hints ?? [], style),
   ];
-  if (blocks.length === 0 && summary === undefined) {
+  if (blocks.length === 0 && summary === undefined && options.basePreview === undefined) {
     return `${style.success(CLEAN_LINE)}\n`;
   }
   const sections = [...blocks.map((block) => block.join("\n"))];
@@ -360,6 +350,9 @@ export function renderResults(results: FileResult[], options: RenderOptions): st
   }
   if (hints.length > 0) {
     sections.push(hints.join("\n"));
+  }
+  if (options.basePreview !== undefined) {
+    sections.push(basePreviewLine(options.basePreview, style));
   }
   return `${sections.join(BLOCK_SEPARATOR)}\n`;
 }

@@ -196,12 +196,13 @@ describe("e2e CLI", () => {
     ]);
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain(
-      `${basePath}  (would format)\n` +
-        "  Style: kebab; structure: dotted\n" +
-        "  Resulting YAML:\n" +
-        "    my-app.camel-case-key: value\n",
-    );
+    expect(result.stdout).not.toContain("Resulting YAML:");
+    expect(result.stdout).not.toContain("my-app.camel-case-key: value");
+    expect(
+      result.stdout
+        .trimEnd()
+        .endsWith(`Base config: ${basePath} (would be updated; style: kebab; structure: dotted)`),
+    ).toBe(true);
     expect(result.stdout).toContain("duplicate  myApp.camelCaseKey = value (would remove)");
     expect(result.stdout).toContain(
       "1 duplicate in 1 of 2 profile files (dry run — nothing written)",

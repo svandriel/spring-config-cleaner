@@ -21,7 +21,6 @@ export interface BaseRewritePreview {
   file: string;
   style: KeyStyle;
   structure: Structure;
-  output: string;
 }
 
 /** Check/fix outcome for one profile config file. */

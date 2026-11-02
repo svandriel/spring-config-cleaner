@@ -188,7 +188,6 @@ export async function fixConfigs(dir: string, options: FixOptions): Promise<FixR
               file: base.path,
               style: options.style,
               structure: options.structure,
-              output: rewritten,
             };
           } else {
             await writeFile(base.path, rewritten, "utf8");
