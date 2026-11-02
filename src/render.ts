@@ -10,7 +10,7 @@
 import type { RedundantEntry } from "./compare.ts";
 import { ConfigError } from "./configfile.ts";
 import { DiscoveryError } from "./discovery.ts";
-import type { FileError, FileResult } from "./report.ts";
+import type { BaseRewritePreview, FileError, FileResult } from "./report.ts";
 import type { Style } from "./style.ts";
 
 /** How the run will treat findings; drives wording and whether frames remain valid. */
@@ -32,6 +32,7 @@ export type Hint = HintCommand | HintText;
 export interface RenderOptions {
   mode: RenderMode;
   style: Style;
+  basePreview?: BaseRewritePreview;
   hints?: Hint[];
 }
 
@@ -186,6 +187,19 @@ function fixBlock(result: FileResult, style: Style): string[] | undefined {
   return [header, ...rows];
 }
 
+function basePreviewBlock(preview: BaseRewritePreview, style: Style): string[] {
+  const lines = preview.output.split(/\r?\n/u);
+  if (lines.at(-1) === "") {
+    lines.pop();
+  }
+  return [
+    `${style.path(preview.file)}  ${style.dim("(would format)")}`,
+    `${INDENT}${style.dim(`Style: ${preview.style}; structure: ${preview.structure}`)}`,
+    `${INDENT}${style.dim("Resulting YAML:")}`,
+    ...lines.map((line) => `${INDENT}${INDENT}${sanitize(line)}`),
+  ];
+}
+
 /** YAML parse position carried by a config error, if any. */
 function configPosition(error: FileError): { line: number; column: number } | undefined {
   const candidate = error as { line?: unknown; column?: unknown };
@@ -319,13 +333,16 @@ function hintLines(hints: Hint[], style: Style): string[] {
 
 export function renderResults(results: FileResult[], options: RenderOptions): string {
   const { mode, style } = options;
-  const blocks = results.flatMap((result) => {
-    if (result.error !== undefined) {
-      return [errorBlock(result, style)];
-    }
-    const block = mode === "fix" ? fixBlock(result, style) : findingBlock(result, mode, style);
-    return block === undefined ? [] : [block];
-  });
+  const blocks = [
+    ...(options.basePreview === undefined ? [] : [basePreviewBlock(options.basePreview, style)]),
+    ...results.flatMap((result) => {
+      if (result.error !== undefined) {
+        return [errorBlock(result, style)];
+      }
+      const block = mode === "fix" ? fixBlock(result, style) : findingBlock(result, mode, style);
+      return block === undefined ? [] : [block];
+    }),
+  ];
   const summary = summaryLine(results, mode, style);
   const hints = [
     ...results.flatMap((result) => {

@@ -10,7 +10,7 @@ import { compareProfileFile, type RedundantEntry } from "./compare.ts";
 import { ConfigError, type ConfigFile } from "./configfile.ts";
 import { DiscoveryError, type DiscoveryResult, discoverConfigs } from "./discovery.ts";
 import { extractProfileName, type KeyStyle } from "./keys.ts";
-import type { FileResult } from "./report.ts";
+import type { BaseRewritePreview, FileResult } from "./report.ts";
 import { rewriteConfigFile, type Structure } from "./rewrite.ts";
 
 export * from "./activation.ts";
@@ -23,7 +23,7 @@ export { DiscoveryError, discoverConfigs } from "./discovery.ts";
 export type { KeyStyle } from "./keys.ts";
 export { canonicalKey, extractProfileName, renderSegment, splitWords } from "./keys.ts";
 export * from "./paths.ts";
-export type { FileResult } from "./report.ts";
+export type { BaseRewritePreview, FileResult } from "./report.ts";
 export { NO_DUPLICATES_LINE, renderReport } from "./report.ts";
 export type { Structure, WriteOptions } from "./rewrite.ts";
 export { rewriteConfigFile } from "./rewrite.ts";
@@ -49,8 +49,11 @@ export interface FixOptions {
   dryRun?: boolean;
 }
 
-/** Outcome of a fix run; shapes identically to a check run's result. */
-export type FixResult = CheckResult;
+/** Outcome of a fix run, optionally including the base output computed in dry-run mode. */
+export interface FixResult extends CheckResult {
+  /** Formatted base content when `base` and `dryRun` are both enabled. */
+  basePreview?: BaseRewritePreview;
+}
 
 /** Source text carried by a thrown value, when it has one. */
 function sourceOf(error: unknown): string | undefined {
@@ -161,7 +164,8 @@ export async function checkConfigs(dir: string): Promise<CheckResult> {
  * the base file is rewritten only when `options.base` is true.
  */
 export async function fixConfigs(dir: string, options: FixOptions): Promise<FixResult> {
-  return analyzeConfigs(
+  let basePreview: BaseRewritePreview | undefined;
+  const result = await analyzeConfigs(
     dir,
     async (profile, redundant) => {
       if (options.dryRun === true) {
@@ -173,14 +177,24 @@ export async function fixConfigs(dir: string, options: FixOptions): Promise<FixR
       });
       await writeFile(profile.path, rewritten, "utf8");
     },
-    options.base === true && options.dryRun !== true
+    options.base === true
       ? async (base) => {
           const rewritten = rewriteConfigFile(base.source, [], {
             style: options.style,
             structure: options.structure,
           });
-          await writeFile(base.path, rewritten, "utf8");
+          if (options.dryRun === true) {
+            basePreview = {
+              file: base.path,
+              style: options.style,
+              structure: options.structure,
+              output: rewritten,
+            };
+          } else {
+            await writeFile(base.path, rewritten, "utf8");
+          }
         }
       : undefined,
   );
+  return basePreview === undefined ? result : { ...result, basePreview };
 }

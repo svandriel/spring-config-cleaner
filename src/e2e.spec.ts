@@ -177,9 +177,13 @@ describe("e2e CLI", () => {
     );
   });
 
-  it("does not format the base file in a --base dry run", async () => {
+  it("shows base formatting operations in a dry run without writing the file", async () => {
     const dir = await copyFixture();
-    const base = await readFile(join(dir, "application.yml"), "utf8");
+    const basePath = join(dir, "application.yml");
+    const base = "myApp:\n  camelCaseKey: value\n";
+    const testProfile = "myApp:\n  camelCaseKey: value\n  testOnly: true\n";
+    await writeFile(basePath, base);
+    await writeFile(join(dir, "application-test.yml"), testProfile);
 
     const result = runCli(dir, [
       "--fix",
@@ -192,6 +196,30 @@ describe("e2e CLI", () => {
     ]);
 
     expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      `${basePath}  (would format)\n` +
+        "  Style: kebab; structure: dotted\n" +
+        "  Resulting YAML:\n" +
+        "    my-app.camel-case-key: value\n",
+    );
+    expect(result.stdout).toContain("duplicate  myApp.camelCaseKey = value (would remove)");
+    expect(result.stdout).toContain(
+      "1 duplicate in 1 of 2 profile files (dry run — nothing written)",
+    );
+    expect(await readFile(basePath, "utf8")).toBe(base);
+    expect(await readFile(join(dir, "application-test.yml"), "utf8")).toBe(testProfile);
+  });
+
+  it("offers an apply command for a base-only dry run", async () => {
+    const dir = await copyFixture("clean");
+    const base = await readFile(join(dir, "application.yml"), "utf8");
+
+    const result = runCli(dir, ["--fix", "--dry-run", "--base", "--structure", "dotted"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      `Apply:  spring-config-cleaner --fix --base --structure dotted ${dir}`,
+    );
     expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(base);
   });
 

@@ -4,7 +4,9 @@
  * `renderResults` directly so it can pass terminal colour and hints.
  */
 import type { RedundantEntry } from "./compare.ts";
+import type { KeyStyle } from "./keys.ts";
 import { CLEAN_LINE, renderResults } from "./render.ts";
+import type { Structure } from "./rewrite.ts";
 import { plainStyle } from "./style.ts";
 
 /**
@@ -13,6 +15,14 @@ import { plainStyle } from "./style.ts";
  * needs `error.message`; positions and the source are read duck-typed.
  */
 export type FileError = Error;
+
+/** Planned base-file output returned by a dry-run fix. */
+export interface BaseRewritePreview {
+  file: string;
+  style: KeyStyle;
+  structure: Structure;
+  output: string;
+}
 
 /** Check/fix outcome for one profile config file. */
 export interface FileResult {

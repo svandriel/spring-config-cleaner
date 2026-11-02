@@ -3,6 +3,7 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Command, CommanderError, Option } from "commander";
 import pkg from "../package.json" with { type: "json" };
+import type { BaseRewritePreview, CheckResult } from "./index.ts";
 import { checkConfigs, fixConfigs } from "./index.ts";
 import type { KeyStyle } from "./keys.ts";
 import { type Hint, type RenderMode, renderResults } from "./render.ts";
@@ -57,7 +58,7 @@ function commandFor(flags: string[], dir: string, options: Options): string {
 
 /** Mode- and outcome-specific next steps; empty when there is nothing to act on. */
 function hintsFor(mode: RenderMode, duplicates: number, dir: string, options: Options): Hint[] {
-  if (duplicates === 0) {
+  if (duplicates === 0 && !(mode === "dry-run" && options.base)) {
     return [];
   }
   if (mode === "check") {
@@ -148,18 +149,25 @@ export async function runCli(argv: string[]): Promise<number> {
   const dir = typeof dirArg === "string" ? dirArg : process.cwd();
   const mode: RenderMode = options.fix ? (options.dryRun ? "dry-run" : "fix") : "check";
 
-  const result = options.fix
-    ? await fixConfigs(dir, {
-        style: options.style,
-        structure: options.structure,
-        base: options.base,
-        dryRun: options.dryRun,
-      })
-    : await checkConfigs(dir);
+  let result: CheckResult;
+  let basePreview: BaseRewritePreview | undefined;
+  if (options.fix) {
+    const fixed = await fixConfigs(dir, {
+      style: options.style,
+      structure: options.structure,
+      base: options.base,
+      dryRun: options.dryRun,
+    });
+    result = fixed;
+    basePreview = fixed.basePreview;
+  } else {
+    result = await checkConfigs(dir);
+  }
   process.stdout.write(
     renderResults(result.files, {
       mode,
       style: stdoutStyle,
+      ...(basePreview === undefined ? {} : { basePreview }),
       hints: hintsFor(mode, result.duplicates, dir, options),
     }),
   );
