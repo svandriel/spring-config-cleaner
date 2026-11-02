@@ -140,6 +140,31 @@ describe("e2e CLI", () => {
     },
   );
 
+  it("removes enterprise defaults while retaining test and production database overrides", async () => {
+    const dir = await copyFixture();
+
+    const checked = runCli(dir);
+
+    expect(checked.status).toBe(1);
+    expect(checked.stdout).toContain(join(dir, "application-test.yml"));
+    expect(checked.stdout).toContain(join(dir, "application-prod.yml"));
+    expect(checked.stdout).toContain("spring.cloud.config.enabled");
+    expect(checked.stdout).toContain("spring.cloud.azure.active-directory.enabled");
+    expect(checked.stdout).toContain("spring.security.oauth2.resourceserver.jwt.issuer-uri");
+    expect(checked.stdout).toContain("app.data-sources.ledger.driver-class-name");
+
+    const fixed = runCli(dir, ["--fix", "--base"]);
+
+    expect(fixed.status).toBe(0);
+    expect(runCli(dir).status).toBe(0);
+    expect(await readFile(join(dir, "application-test.yml"), "utf8")).toContain(
+      "jdbc:postgresql://test-db:5432/payments",
+    );
+    expect(await readFile(join(dir, "application-prod.yml"), "utf8")).toContain(
+      "jdbc:postgresql://payments-primary.internal:5432/payments",
+    );
+  });
+
   it("formats the base file with the selected structure and style when --base is set", async () => {
     const dir = await copyFixture();
     await writeFile(join(dir, "application.yml"), "myApp:\n  camelCaseKey: value\n");
