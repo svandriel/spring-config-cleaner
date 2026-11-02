@@ -51,3 +51,4 @@ You don't have to care about formatting — the pre-commit hook (lint-staged →
 - Prefer git worktrees, but ask user first
 - Never commit anything under `docs/superpowers/` — process/design documents stay local and untracked (enforced by `.gitignore`).
 - Tests are colocated `*.spec.ts`/`*.test.ts` files under `src/`; fixtures go beside the spec that uses them.
+- Always keep the documentation up to date with code changes.
