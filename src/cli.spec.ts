@@ -191,6 +191,14 @@ describe("runCli", () => {
     expect(written(log)).toContain(`Verify:  spring-config-cleaner --check ${dir}`);
   });
 
+  it("includes --base in the verification hint when the base file was fixed", async () => {
+    silenceOutput();
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const dir = await duplicateFixture();
+    expect(await runCli([dir, "--fix", "--base"])).toBe(0);
+    expect(written(log)).toContain(`Verify:  spring-config-cleaner --check --base ${dir}`);
+  });
+
   it("--dry-run with --fix leaves the disk identical and hints at applying", async () => {
     silenceOutput();
     const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);

@@ -48,7 +48,7 @@ function directoryWord(dir: string): string {
 function commandFor(flags: string[], dir: string, options: Options): string {
   const rewritten = [
     ...flags,
-    ...(options.base && flags.includes("--fix") ? ["--base"] : []),
+    ...(options.base && (flags.includes("--fix") || flags.includes("--check")) ? ["--base"] : []),
     ...(options.style === DEFAULT_STYLE ? [] : ["--style", options.style]),
     ...(options.structure === DEFAULT_STRUCTURE ? [] : ["--structure", options.structure]),
     directoryWord(dir),
