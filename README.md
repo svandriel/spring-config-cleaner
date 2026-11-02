@@ -136,6 +136,8 @@ pnpm exec changeset --empty
 When changesets are merged to `main`, GitHub Actions opens or updates a version
 pull request. Merging that pull request updates `package.json` and
 `CHANGELOG.md`; publishing to npm remains a separate manual step.
+In repository settings, allow GitHub Actions to create pull requests so the
+version PR can be opened.
 
 ## License
 
