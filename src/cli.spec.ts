@@ -6,6 +6,7 @@ import { runCli } from "./cli.ts";
 
 const BASE = "myApp:\n  baseKey: 1\n";
 const PROFILE = "myApp:\n  baseKey: 1\n  extraKey: 2\n";
+const CLEAN_BASE = "myApp:\n  baseKey: 1\n  otherKey: 2\n";
 
 const created: string[] = [];
 
@@ -29,7 +30,7 @@ async function fixture(files: Record<string, string>): Promise<string> {
   return dir;
 }
 
-const cleanFixture = () => fixture({ "application.yml": BASE });
+const cleanFixture = () => fixture({ "application.yml": CLEAN_BASE });
 const duplicateFixture = () =>
   fixture({ "application.yml": BASE, "application-prod.yml": PROFILE });
 
@@ -152,7 +153,6 @@ describe("runCli", () => {
     silenceOutput();
     const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const dir = await cleanFixture();
-    await writeFile(join(dir, "application.yml"), "myApp.baseKey: 1\n");
     expect(await runCli([dir, "--base"])).toBe(0);
     expect(written(log)).toBe("✓ No duplicates found.\n");
   });
