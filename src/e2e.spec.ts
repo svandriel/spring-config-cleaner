@@ -140,7 +140,7 @@ describe("e2e CLI", () => {
         "\n" +
         "✓ Removed 2 duplicates from 2 files.\n" +
         "\n" +
-        `  Verify:  spring-config-cleaner --check ${dir}\n`,
+        `  Verify:  spring-config-cleaner --check --style kebab ${dir}\n`,
     );
     const prod = await readFile(join(dir, "application-prod.yml"), "utf8");
     expect(pathsOf(prod)).toEqual([

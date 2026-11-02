@@ -11,7 +11,7 @@ import { colorEnabled, createStyle, type Style } from "./style.ts";
 
 const STYLES: readonly string[] = ["kebab", "camel", "snake", "preserve"];
 const STRUCTURES: readonly string[] = ["preserve", "nested", "dotted"];
-const DEFAULT_STYLE = "kebab";
+const DEFAULT_STYLE = "preserve";
 const DEFAULT_STRUCTURE = "preserve";
 const COMMAND = "spring-config-cleaner";
 
