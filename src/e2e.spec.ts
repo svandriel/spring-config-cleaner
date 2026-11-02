@@ -127,18 +127,15 @@ describe("e2e CLI", () => {
     "matches %s-%s structure and style output files",
     async (structure, style) => {
       const dir = await copyFixture();
-      const result = runCli(dir, ["--fix", "--structure", structure, "--style", style]);
+      const result = runCli(dir, ["--fix", "--base", "--structure", structure, "--style", style]);
 
       expect(result.status).toBe(0);
       await Promise.all(
-        ["application-test.yml", "application-prod.yml"].map(async (file) => {
+        ["application.yml", "application-test.yml", "application-prod.yml"].map(async (file) => {
           await expect(await readFile(join(dir, file), "utf8")).toMatchFileSnapshot(
             join(FIXTURES, "expected", `${structure}-${style}`, file),
           );
         }),
-      );
-      expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(
-        await readFile(join(FIXTURES, "application.yml"), "utf8"),
       );
     },
   );
