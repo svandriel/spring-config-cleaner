@@ -152,6 +152,7 @@ describe("runCli", () => {
     silenceOutput();
     const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const dir = await cleanFixture();
+    await writeFile(join(dir, "application.yml"), "myApp.baseKey: 1\n");
     expect(await runCli([dir, "--base"])).toBe(0);
     expect(written(log)).toBe("✓ No duplicates found.\n");
   });
@@ -179,7 +180,7 @@ describe("runCli", () => {
     const dir = await duplicateFixture();
     expect(await runCli([dir, "--fix"])).toBe(0);
     const profile = await readFile(join(dir, "application-prod.yml"), "utf8");
-    expect(profile).toBe("myApp:\n  extraKey: 2\n");
+    expect(profile).toBe("myApp.extraKey: 2\n");
     expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(BASE);
   });
 

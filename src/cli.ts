@@ -10,10 +10,10 @@ import { type Hint, type RenderMode, renderResults } from "./render.ts";
 import type { Structure } from "./rewrite.ts";
 import { colorEnabled, createStyle, type Style } from "./style.ts";
 
-const STYLES: readonly string[] = ["kebab", "camel", "snake", "preserve"];
-const STRUCTURES: readonly string[] = ["preserve", "nested", "dotted", "compact"];
-const DEFAULT_STYLE = "preserve";
-const DEFAULT_STRUCTURE = "preserve";
+const STYLES: readonly KeyStyle[] = ["kebab", "camel", "snake", "preserve"];
+const STRUCTURES: readonly Structure[] = ["preserve", "nested", "dotted", "compact"];
+const DEFAULT_STYLE: KeyStyle = "preserve";
+const DEFAULT_STRUCTURE: Structure = "compact";
 const COMMAND = "spring-config-cleaner";
 
 /** Parsed option shape of the program (every option carries a default). */
