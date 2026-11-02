@@ -18,7 +18,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - if: github.event_name == 'pull_request'
+      - if: github.event_name == 'pull_request' && !(github.event.pull_request.user.login == 'github-actions[bot]' && github.head_ref == 'changeset-release/main')
         run: pnpm exec changeset status --since origin/main
       - run: pnpm typecheck
       - run: pnpm lint
