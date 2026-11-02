@@ -148,13 +148,12 @@ describe("runCli", () => {
     expect(text).toContain("--help");
   });
 
-  it("fixes duplicates on disk and exits 0", async () => {
+  it("preserves surviving key spelling by default when fixing duplicates", async () => {
     silenceOutput();
     const dir = await duplicateFixture();
     expect(await runCli([dir, "--fix"])).toBe(0);
     const profile = await readFile(join(dir, "application-prod.yml"), "utf8");
-    expect(profile).toContain("extra-key");
-    expect(profile).not.toContain("base-key");
+    expect(profile).toBe("myApp:\n  extraKey: 2\n");
     expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(BASE);
   });
 

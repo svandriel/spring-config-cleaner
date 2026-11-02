@@ -3,12 +3,15 @@ import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { parseDocument } from "yaml";
-import { flattenDocument } from "./paths.ts";
 
 const CLI = join(process.cwd(), "dist", "cli.js");
 const FIXTURES = join(import.meta.dirname, "e2e", "__fixtures__");
 const FILES = ["application.yml", "application-prod.yml", "application-test.yml"];
+const STRUCTURES = ["preserve", "nested", "dotted", "compact"] as const;
+const STYLES = ["preserve", "kebab", "camel", "snake"] as const;
+const STRUCTURE_STYLE_CASES = STRUCTURES.flatMap((structure) =>
+  STYLES.map((style) => [structure, style] as const),
+);
 
 interface RunResult {
   status: number;
@@ -23,10 +26,10 @@ afterEach(async () => {
   created.length = 0;
 });
 
-async function copyFixture(name: string): Promise<string> {
+async function copyFixture(name?: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "scc-e2e-"));
   created.push(dir);
-  await cp(join(FIXTURES, name), dir, { recursive: true });
+  await cp(name === undefined ? FIXTURES : join(FIXTURES, name), dir, { recursive: true });
   return dir;
 }
 
@@ -58,25 +61,19 @@ function runCli(dir: string, args: string[] = []): RunResult {
   }
 }
 
-function pathsOf(source: string): string[] {
-  return flattenDocument(parseDocument(source), 0, source).map((entry) => entry.path);
-}
-
 /** Classic fixture report: two profiles repeat the base `maxThreads` value. */
 function classicReport(dir: string): string {
   const base = join(dir, "application.yml");
-  const frame = (line: number) =>
-    `  ${line} │ my.app.maxThreads: 8\n` +
-    "    │ ^^^^^^^^^^^^^^^^^^^^  " +
-    `already defined in ${base}:7:5\n`;
+  const frame = (line: number, source: string, carets: string) =>
+    `  ${line} │ ${source}\n` + `    │ ${carets}  ` + `already defined in ${base}:7:5\n`;
   return (
     `${join(dir, "application-prod.yml")}\n` +
-    "  2:1  duplicate  my.app.maxThreads = 8\n" +
-    frame(2) +
+    "  3:3  duplicate  my.app.maxThreads = 8\n" +
+    frame(3, "  maxThreads: 8", "  ^^^^^^^^^^^^^") +
     "\n" +
     `${join(dir, "application-test.yml")}\n` +
     "  1:1  duplicate  my.app.maxThreads = 8\n" +
-    frame(1) +
+    frame(1, "my.app.maxThreads: 8", "^^^^^^^^^^^^^^^^^^^^") +
     "\n" +
     "✖ 2 duplicates in 2 of 2 profile files\n"
   );
@@ -126,37 +123,25 @@ describe("e2e CLI", () => {
     expect(await snapshot(dir)).toEqual(before);
   });
 
-  it("rewrites affected profiles and leaves the base file byte-identical", async () => {
-    const dir = await copyFixture("classic");
-    const base = await readFile(join(dir, "application.yml"), "utf8");
+  it.each(STRUCTURE_STYLE_CASES)(
+    "matches %s-%s structure and style output files",
+    async (structure, style) => {
+      const dir = await copyFixture();
+      const result = runCli(dir, ["--fix", "--structure", structure, "--style", style]);
 
-    const result = runCli(dir, ["--fix", "--style", "kebab", "--structure", "preserve"]);
-
-    expect(result.status).toBe(0);
-    expect(result.stdout).toBe(
-      `✓ ${join(dir, "application-prod.yml")}  removed 1 duplicate\n` +
-        "  − my.app.maxThreads = 8\n" +
-        "\n" +
-        `✓ ${join(dir, "application-test.yml")}  removed 1 duplicate\n` +
-        "  − my.app.maxThreads = 8\n" +
-        "\n" +
-        "✓ Removed 2 duplicates from 2 files.\n" +
-        "\n" +
-        `  Verify:  spring-config-cleaner --check ${dir}\n`,
-    );
-    const prod = await readFile(join(dir, "application-prod.yml"), "utf8");
-    expect(pathsOf(prod)).toEqual(["my.app.max-connections", "spring.application.name"]);
-    expect(prod).toContain("# overridden intentionally");
-    expect(prod).toContain("demo-prod");
-    // Comment preservation re-homes the removed entry's comment onto the next key.
-    expect(prod).toContain("# duplicate");
-    expect(prod).not.toContain("my.app.maxThreads");
-
-    const testProfile = await readFile(join(dir, "application-test.yml"), "utf8");
-    expect(pathsOf(testProfile)).toEqual(["my.app.test-only"]);
-
-    expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(base);
-  });
+      expect(result.status).toBe(0);
+      await Promise.all(
+        ["application-test.yml", "application-prod.yml"].map(async (file) => {
+          await expect(await readFile(join(dir, file), "utf8")).toMatchFileSnapshot(
+            join(FIXTURES, "expected", `${structure}-${style}`, file),
+          );
+        }),
+      );
+      expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(
+        await readFile(join(FIXTURES, "application.yml"), "utf8"),
+      );
+    },
+  );
 
   it("reports a clean fixture and leaves it untouched", async () => {
     const dir = await copyFixture("clean");

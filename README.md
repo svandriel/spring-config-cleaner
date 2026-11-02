@@ -1,10 +1,12 @@
 # spring-config-cleaner
 
-Cleans Spring configuration YAML files.
+Find and remove duplicate entries in Spring profile YAML while keeping the
+configuration's effective values unchanged. Check or fix files from the CLI,
+preview changes before writing, or use the TypeScript API in your own tools.
 
 ## Requirements
 
-- Node.js 24.22.1 or newer on the 24.x line (patched for CVE-2026-111497)
+- Node.js 24 or newer
 
 ## Install
 
@@ -32,15 +34,18 @@ Options:
 - `--check` — report duplicates without writing (default mode; mutually exclusive with `--fix`)
 - `--fix` — remove the duplicate entries from the profile files
 - `--dry-run` — compute the fix but never write (requires `--fix`)
-- `--style <kebab|camel|snake|preserve>` — key style for surviving keys (default `kebab`)
-- `--structure <preserve|nested|dotted>` — layout of the rewritten files (default `preserve`)
+- `--style <kebab|camel|snake|preserve>` — key style for surviving keys (default `preserve`)
+- `--structure <preserve|nested|dotted|compact>` — layout of the rewritten files (default `preserve`)
+
+`compact` uses dotted keys for single-child paths and keeps branching mappings
+nested.
 
 ### Output
 
-Findings are diagnostics: a file header with a clickable `line:column` for each
-finding, the offending source line with a caret run under the redundant entry,
-and the base location that already defines the same value. Error headers include
-the full `path:line:column`.
+Findings are grouped under each file path and show a `line:column` location, the
+offending source line with a caret under the redundant entry, and the base
+location that already defines the same value. Positioned errors include the
+full `path:line:column` in their headers.
 
 ```text
 /srv/app/config/application-prod.yml
@@ -66,11 +71,12 @@ the full `path:line:column`.
   Verify:  spring-config-cleaner --check /srv/app/config
 ```
 
-YAML parse errors show the failing position and a frame; a clean run prints a
-single green checkmark. Colour is applied only when the destination is a
-colour-capable terminal, so piped and CI output stays plain text. `FORCE_COLOR`
-overrides that check, while `NO_COLOR`, `TERM=dumb` and non-TTY destinations
-keep the output plain.
+YAML parse errors with a known position show the failing position and a source
+frame; errors without a position, such as multi-document files, omit the frame.
+A clean run prints a single green checkmark. Colour is applied only when the
+destination is a colour-capable terminal, so piped and CI output stays plain
+text. `FORCE_COLOR` overrides that check, while `NO_COLOR`, `TERM=dumb` and
+non-TTY destinations keep the output plain.
 
 ### Library
 

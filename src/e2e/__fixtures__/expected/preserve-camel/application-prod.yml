@@ -1,0 +1,11 @@
+# prod profile
+app:
+  banner.enabled: false # banner flag
+  logs:
+    outputMode: file
+    streamingEnabled: true
+  customCRMFlag: false
+  metrics:
+    export:
+      prometheus:
+        enabled: false

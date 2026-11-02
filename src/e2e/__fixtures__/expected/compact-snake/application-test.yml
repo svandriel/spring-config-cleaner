@@ -1,0 +1,8 @@
+app:
+  # test profile
+  banner.enabled: true # banner flag
+  logs:
+    output_mode: stdout
+    streaming_enabled: false
+  custom_crm_flag: true
+  metrics.export.prometheus.enabled: true

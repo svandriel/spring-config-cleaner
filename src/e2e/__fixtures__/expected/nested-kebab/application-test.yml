@@ -1,0 +1,12 @@
+app:
+  banner:
+    # test profile
+    enabled: true # banner flag
+  logs:
+    output-mode: stdout
+    streaming-enabled: false
+  custom-crm-flag: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
