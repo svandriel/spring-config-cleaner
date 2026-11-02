@@ -148,14 +148,30 @@ describe("runCli", () => {
     expect(text).toContain("--help");
   });
 
-  it("fails with a styled message and hint when --base is used without --fix", async () => {
+  it("allows --base in check mode when the base file already matches the selected format", async () => {
     silenceOutput();
-    const err = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const dir = await cleanFixture();
-    expect(await runCli([dir, "--base"])).toBe(1);
-    const text = written(err);
-    expect(text).toContain("--base requires --fix");
-    expect(text).toContain("--help");
+    expect(await runCli([dir, "--base"])).toBe(0);
+    expect(written(log)).toBe("✓ No duplicates found.\n");
+  });
+
+  it("fails check mode when formatting the base file would change it", async () => {
+    silenceOutput();
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const dir = await cleanFixture();
+    const basePath = join(dir, "application.yml");
+    const base = await readFile(basePath, "utf8");
+
+    expect(await runCli([dir, "--base", "--structure", "dotted"])).toBe(1);
+
+    expect(written(log)).toContain(
+      `✖ Base config: ${basePath} (would be updated; style: preserve; structure: dotted)`,
+    );
+    expect(written(log)).toContain(
+      `Format base:  spring-config-cleaner --fix --base --structure dotted ${dir}`,
+    );
+    expect(await readFile(basePath, "utf8")).toBe(base);
   });
 
   it("preserves surviving key spelling by default when fixing duplicates", async () => {

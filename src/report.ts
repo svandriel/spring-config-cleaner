@@ -16,7 +16,7 @@ import { plainStyle } from "./style.ts";
  */
 export type FileError = Error;
 
-/** Planned base-file output returned by a dry-run fix. */
+/** Base-file format change reported by a check or dry-run fix. */
 export interface BaseRewritePreview {
   file: string;
   style: KeyStyle;

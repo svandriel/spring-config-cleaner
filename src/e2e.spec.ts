@@ -177,6 +177,24 @@ describe("e2e CLI", () => {
     );
   });
 
+  it("fails --base check when formatting would change the base file", async () => {
+    const dir = await copyFixture("clean");
+    const basePath = join(dir, "application.yml");
+    const base = "myApp:\n  camelCaseKey: value\n";
+    await writeFile(basePath, base);
+
+    const result = runCli(dir, ["--base", "--structure", "dotted", "--style", "kebab"]);
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      `✖ Base config: ${basePath} (would be updated; style: kebab; structure: dotted)`,
+    );
+    expect(result.stdout).toContain(
+      `Format base:  spring-config-cleaner --fix --base --style kebab --structure dotted ${dir}`,
+    );
+    expect(await readFile(basePath, "utf8")).toBe(base);
+  });
+
   it("shows base formatting operations in a dry run without writing the file", async () => {
     const dir = await copyFixture();
     const basePath = join(dir, "application.yml");

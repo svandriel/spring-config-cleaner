@@ -57,11 +57,20 @@ function commandFor(flags: string[], dir: string, options: Options): string {
 }
 
 /** Mode- and outcome-specific next steps; empty when there is nothing to act on. */
-function hintsFor(mode: RenderMode, duplicates: number, dir: string, options: Options): Hint[] {
-  if (duplicates === 0 && !(mode === "dry-run" && options.base)) {
+function hintsFor(
+  mode: RenderMode,
+  duplicates: number,
+  baseWouldChange: boolean,
+  dir: string,
+  options: Options,
+): Hint[] {
+  if (duplicates === 0 && !baseWouldChange) {
     return [];
   }
   if (mode === "check") {
+    if (duplicates === 0) {
+      return [{ label: "Format base:", command: commandFor(["--fix"], dir, options) }];
+    }
     return [
       { label: "Remove them:", command: commandFor(["--fix"], dir, options) },
       {
@@ -98,7 +107,7 @@ export async function runCli(argv: string[]): Promise<number> {
     .exitOverride()
     .argument("[dir]", "config directory to process", process.cwd())
     .option("--fix", "rewrite the profile files, removing duplicates", false)
-    .option("--base", "also rewrite the base application.yml file", false)
+    .option("--base", "also check or rewrite the base application.yml file", false)
     .addOption(
       new Option("--check", "report duplicates without writing (default)").conflicts("fix"),
     )
@@ -135,14 +144,6 @@ export async function runCli(argv: string[]): Promise<number> {
     );
     return 1;
   }
-  if (options.base && !options.fix) {
-    process.stderr.write(
-      `${stderrStyle.error("✖")} ${stderrStyle.error("--base requires --fix")}\n` +
-        `\n${usageHint(stderrStyle)}\n`,
-    );
-    return 1;
-  }
-
   // Argument defaults live in processedArgs (not opts); the commander-declared
   // default is process.cwd().
   const [dirArg] = program.processedArgs;
@@ -161,18 +162,23 @@ export async function runCli(argv: string[]): Promise<number> {
     result = fixed;
     basePreview = fixed.basePreview;
   } else {
-    result = await checkConfigs(dir);
+    result = await checkConfigs(dir, {
+      base: options.base,
+      style: options.style,
+      structure: options.structure,
+    });
+    basePreview = result.basePreview;
   }
   process.stdout.write(
     renderResults(result.files, {
       mode,
       style: stdoutStyle,
       ...(basePreview === undefined ? {} : { basePreview }),
-      hints: hintsFor(mode, result.duplicates, dir, options),
+      hints: hintsFor(mode, result.duplicates, basePreview !== undefined, dir, options),
     }),
   );
   const errored = result.files.some((file) => file.error !== undefined);
-  return errored || (!options.fix && result.duplicates > 0) ? 1 : 0;
+  return errored || (!options.fix && (result.duplicates > 0 || basePreview !== undefined)) ? 1 : 0;
 }
 
 /** True when this module is the node entry (`node dist/cli.js`, bin symlinks included). */

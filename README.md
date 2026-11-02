@@ -19,8 +19,11 @@ pnpm add spring-config-cleaner
 ### CLI
 
 ```sh
-# Check (default mode): print a report, exit 1 when duplicates or errors
+# Check (default mode): exit 1 for duplicates, errors, or a requested base format mismatch
 spring-config-cleaner [dir]
+
+# Also check that application.yml already matches the selected format
+spring-config-cleaner --base [dir]
 
 # Fix: rewrite the profile files, removing duplicate entries
 spring-config-cleaner --fix [dir]
@@ -36,8 +39,8 @@ Options:
 
 - `--check` — report duplicates without writing (default mode; mutually exclusive with `--fix`)
 - `--fix` — remove the duplicate entries from the profile files
-- `--base` — also rewrite the base `application.yml` with the selected style and structure
-  (requires `--fix`; omitted by default)
+- `--base` — check that `application.yml` already matches the selected style and structure;
+  with `--fix`, rewrite it too (omitted by default)
 - `--dry-run` — compute the fix but never write (requires `--fix`)
 - `--style <kebab|camel|snake|preserve>` — key style for surviving keys (default `preserve`)
 - `--structure <preserve|nested|dotted|compact>` — layout of the rewritten files (default `preserve`)

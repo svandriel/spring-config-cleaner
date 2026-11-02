@@ -35,6 +35,18 @@ export interface CheckResult {
   files: FileResult[];
   /** Redundant entries counted across all profile files. */
   duplicates: number;
+  /** Present when the base file would change under a requested `--base` check. */
+  basePreview?: BaseRewritePreview;
+}
+
+/** Optional base-format validation for `checkConfigs`. */
+export interface CheckOptions {
+  /** Check that the base file already matches the selected format. */
+  base?: boolean;
+  /** Key style to validate when `base` is enabled; defaults to `preserve`. */
+  style?: KeyStyle;
+  /** Structure to validate when `base` is enabled; defaults to `preserve`. */
+  structure?: Structure;
 }
 
 /** Options for `fixConfigs`: key restyle, structural layout, optional base formatting, dry-run. */
@@ -49,9 +61,9 @@ export interface FixOptions {
   dryRun?: boolean;
 }
 
-/** Outcome of a fix run, optionally including the base output computed in dry-run mode. */
+/** Outcome of a fix run, optionally indicating a base-file change in dry-run mode. */
 export interface FixResult extends CheckResult {
-  /** Formatted base content when `base` and `dryRun` are both enabled. */
+  /** Base file that would change when `base` and `dryRun` are both enabled. */
   basePreview?: BaseRewritePreview;
 }
 
@@ -151,10 +163,26 @@ async function analyzeConfigs(
 /**
  * Check `dir` for redundant profile entries: discover the base and profiles,
  * compare each profile against the base, and report per-file results without
- * modifying the disk.
+ * modifying the disk. When `options.base` is enabled, also report if formatting
+ * the base file with the selected style and structure would change it.
  */
-export async function checkConfigs(dir: string): Promise<CheckResult> {
-  return analyzeConfigs(dir);
+export async function checkConfigs(dir: string, options: CheckOptions = {}): Promise<CheckResult> {
+  let basePreview: BaseRewritePreview | undefined;
+  const result = await analyzeConfigs(
+    dir,
+    undefined,
+    options.base === true
+      ? async (base) => {
+          const style = options.style ?? "preserve";
+          const structure = options.structure ?? "preserve";
+          const rewritten = rewriteConfigFile(base.source, [], { style, structure });
+          if (rewritten !== base.source) {
+            basePreview = { file: base.path, style, structure };
+          }
+        }
+      : undefined,
+  );
+  return basePreview === undefined ? result : { ...result, basePreview };
 }
 
 /**
@@ -184,11 +212,13 @@ export async function fixConfigs(dir: string, options: FixOptions): Promise<FixR
             structure: options.structure,
           });
           if (options.dryRun === true) {
-            basePreview = {
-              file: base.path,
-              style: options.style,
-              structure: options.structure,
-            };
+            if (rewritten !== base.source) {
+              basePreview = {
+                file: base.path,
+                style: options.style,
+                structure: options.structure,
+              };
+            }
           } else {
             await writeFile(base.path, rewritten, "utf8");
           }

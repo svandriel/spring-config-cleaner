@@ -187,8 +187,9 @@ function fixBlock(result: FileResult, style: Style): string[] | undefined {
   return [header, ...rows];
 }
 
-function basePreviewLine(preview: BaseRewritePreview, style: Style): string {
-  return `${style.success("Base config:")} ${style.path(preview.file)} ${style.dim(
+function basePreviewLine(preview: BaseRewritePreview, mode: RenderMode, style: Style): string {
+  const label = mode === "check" ? style.error("✖ Base config:") : style.dim("Base config:");
+  return `${label} ${style.path(preview.file)} ${style.dim(
     `(would be updated; style: ${preview.style}; structure: ${preview.structure})`,
   )}`;
 }
@@ -352,7 +353,7 @@ export function renderResults(results: FileResult[], options: RenderOptions): st
     sections.push(hints.join("\n"));
   }
   if (options.basePreview !== undefined) {
-    sections.push(basePreviewLine(options.basePreview, style));
+    sections.push(basePreviewLine(options.basePreview, mode, style));
   }
   return `${sections.join(BLOCK_SEPARATOR)}\n`;
 }
