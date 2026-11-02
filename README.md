@@ -118,6 +118,25 @@ pnpm build
 - `pnpm coverage` writes a coverage report to `coverage/`.
 - `pnpm lint:fix` applies Biome lint and format fixes.
 
+### Release notes
+
+Add a changeset for each release-worthy change:
+
+```sh
+pnpm exec changeset
+```
+
+Choose the appropriate version bump and write a short summary. For changes
+that should not trigger a release, use:
+
+```sh
+pnpm exec changeset --empty
+```
+
+When changesets are merged to `main`, GitHub Actions opens or updates a version
+pull request. Merging that pull request updates `package.json` and
+`CHANGELOG.md`; publishing to npm remains a separate manual step.
+
 ## License
 
 MIT
