@@ -65,18 +65,16 @@ function pathsOf(source: string): string[] {
 /** Classic fixture report: two profiles repeat the base `maxThreads` value. */
 function classicReport(dir: string): string {
   const base = join(dir, "application.yml");
-  const frame = (line: number) =>
-    `  ${line} │ my.app.maxThreads: 8\n` +
-    "    │ ^^^^^^^^^^^^^^^^^^^^  " +
-    `already defined in ${base}:7:5\n`;
+  const frame = (line: number, source: string, carets: string) =>
+    `  ${line} │ ${source}\n` + `    │ ${carets}  ` + `already defined in ${base}:7:5\n`;
   return (
     `${join(dir, "application-prod.yml")}\n` +
-    "  2:1  duplicate  my.app.maxThreads = 8\n" +
-    frame(2) +
+    "  3:3  duplicate  my.app.maxThreads = 8\n" +
+    frame(3, "  maxThreads: 8", "  ^^^^^^^^^^^^^") +
     "\n" +
     `${join(dir, "application-test.yml")}\n` +
     "  1:1  duplicate  my.app.maxThreads = 8\n" +
-    frame(1) +
+    frame(1, "my.app.maxThreads: 8", "^^^^^^^^^^^^^^^^^^^^") +
     "\n" +
     "✖ 2 duplicates in 2 of 2 profile files\n"
   );
