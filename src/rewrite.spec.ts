@@ -100,6 +100,43 @@ describe("rewriteConfigFile (structure conformance)", () => {
     // Discriminating: the dotted key must be gone (beyond the brief's asserts).
     expect(result).not.toContain("spring.application.name:");
   });
+  it("compacts single-child paths and leaves branching maps nested", () => {
+    const source = [
+      "app:",
+      "  banner:",
+      "    enabled: true",
+      "  logs:",
+      "    streaming: false",
+      "    output: stdout",
+    ].join("\n");
+    const result = rewriteConfigFile(source, [], { style: "preserve", structure: "compact" });
+    expect(result).toBe(
+      [
+        "app:",
+        "  banner.enabled: true",
+        "  logs:",
+        "    streaming: false",
+        "    output: stdout",
+        "",
+      ].join("\n"),
+    );
+  });
+  it("compacts unary chains through to a branch or leaf", () => {
+    const source = [
+      "app:",
+      "  logs:",
+      "    format:",
+      "      json: true",
+      "      text: false",
+      "solo:",
+      "  path:",
+      "    leaf: true",
+    ].join("\n");
+    const result = rewriteConfigFile(source, [], { style: "preserve", structure: "compact" });
+    expect(result).toBe(
+      ["app.logs.format:", "  json: true", "  text: false", "solo.path.leaf: true", ""].join("\n"),
+    );
+  });
   it("keeps the deep subtree on a prefix collision, shallow leaf first", () => {
     const result = rewriteConfigFile("a.b: 1 # shallow\na:\n  b:\n    c: 2\n", [], {
       style: "preserve",

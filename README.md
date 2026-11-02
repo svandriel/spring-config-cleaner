@@ -35,7 +35,10 @@ Options:
 - `--fix` — remove the duplicate entries from the profile files
 - `--dry-run` — compute the fix but never write (requires `--fix`)
 - `--style <kebab|camel|snake|preserve>` — key style for surviving keys (default `preserve`)
-- `--structure <preserve|nested|dotted>` — layout of the rewritten files (default `preserve`)
+- `--structure <preserve|nested|dotted|compact>` — layout of the rewritten files (default `preserve`)
+
+`compact` uses dotted keys for single-child paths and keeps branching mappings
+nested.
 
 ### Output
 

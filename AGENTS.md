@@ -15,7 +15,7 @@ CI order is required: `pnpm typecheck` → `pnpm lint` → `pnpm test` → `pnpm
 
 ## Environment (strict, refuses to run otherwise)
 
-- Node **24.x only**, ≥ 24.22.1: `.nvmrc` pins `24.22.1`, `package.json` `engines`/`devEngines` cap `<25`, `.npmrc` sets `engine-strict=true`. A CVE-patched 24.22.1+ is a security requirement (CVE-2026-111497), not a preference.
+- Node **24 or later**: `package.json` `engines`/`devEngines` require `>=24`, and `.npmrc` enforces engine requirements with `engine-strict=true`. CI selects Node 24 from `.nvmrc`.
 - pnpm via Corepack: `packageManager` field pins `pnpm@12.4.1`.
 
 ## TypeScript strictness quirks (code fails review without these)

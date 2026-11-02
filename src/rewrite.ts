@@ -7,18 +7,19 @@
  * mappings this rewrite emptied (source-empty mappings survive) and keeps
  * comment-carrying ones as empty mappings; surviving keys may be restyled
  * via `renderSegment`. `structure: "dotted"` re-emits every surviving leaf as
- * an explicit dotted key (nested maps collapse) and `"nested"` collapses
- * dotted keys into nested maps; both rebuild the tree from flatten-order
- * leaves, reusing original value nodes (inline comments, anchors and tags
- * survive) and carrying dropped ancestors' comments onto the first leaf below
- * them.
+ * an explicit dotted key (nested maps collapse), `"nested"` collapses dotted
+ * keys into nested maps, and `"compact"` uses dotted paths for single-child
+ * mappings while keeping branches nested. These modes rebuild the tree from
+ * flatten-order leaves, reusing original value nodes (inline comments, anchors
+ * and tags survive) and carrying dropped ancestors' comments onto the first
+ * leaf below them.
  */
 import { isAlias, isMap, isScalar, isSeq, Pair, parseDocument, Scalar, YAMLMap } from "yaml";
 import type { RedundantEntry } from "./compare.ts";
 import { canonicalKey, type KeyStyle, renderSegment, splitWords } from "./keys.ts";
 
 /** Layout a rewritten document can be forced into. */
-export type Structure = "preserve" | "nested" | "dotted";
+export type Structure = "preserve" | "nested" | "dotted" | "compact";
 
 /** Options for `rewriteConfigFile`: key restyle and structural layout. */
 export interface WriteOptions {
@@ -395,6 +396,52 @@ function buildNested(tree: TreeNode, orphans: string[]): YAMLMap {
   return map;
 }
 
+/**
+ * Emit one compact entry, folding every single-child mapping into its dotted
+ * key until reaching a leaf or a branch. Branch mappings remain nested.
+ */
+function buildCompactEntry(
+  map: YAMLMap,
+  segment: string,
+  initial: TreeNode,
+  orphans: string[],
+): void {
+  const segments = [segment];
+  let node = initial;
+  while (true) {
+    if (node.leaf !== undefined && node.children.size > 0) {
+      carveOutLeaf(node.leaf, orphans);
+      delete node.leaf;
+    }
+    if (node.leaf !== undefined || node.children.size !== 1) {
+      break;
+    }
+    const next = node.children.entries().next().value;
+    if (next === undefined) {
+      break;
+    }
+    segments.push(next[0]);
+    node = next[1];
+  }
+
+  const keyNode = new Scalar(segments.join("."));
+  if (node.leaf !== undefined) {
+    setLeadingComments(keyNode, node.leaf.lines);
+    map.items.push(new Pair(keyNode, node.leaf.value));
+    return;
+  }
+  map.items.push(new Pair(keyNode, buildCompact(node, orphans)));
+}
+
+/** Rebuild a tree, compacting single-child paths while preserving branches. */
+function buildCompact(tree: TreeNode, orphans: string[]): YAMLMap {
+  const map = new YAMLMap();
+  tree.children.forEach((child, segment) => {
+    buildCompactEntry(map, segment, child, orphans);
+  });
+  return map;
+}
+
 /** Whether `node` is or contains a YAML alias anywhere in its tree. */
 function containsAlias(node: unknown): boolean {
   if (isAlias(node)) {
@@ -443,12 +490,10 @@ export function rewriteConfigFile(
       seen.add(canonical);
       removeLeaf(root, entry.path);
     });
-  // Structure seam: `preserve` reuses the pruned tree as-is; `dotted`/`nested`
-  // rebuild it from flatten-order leaves (collect runs after prune/restyle so
-  // restyled segments carry into the re-homed keys and removals already
-  // happened). Value nodes are reused, so inline comments, anchors and tags
-  // survive; dropped ancestors' and orphaned comments are pooled onto the
-  // first leaf below them / the rebuilt file head.
+  // Structure seam: `preserve` reuses the pruned tree; the other modes rebuild
+  // it from flatten-order leaves after prune/restyle. Value nodes are reused,
+  // so inline comments, anchors and tags survive; dropped ancestors' and
+  // orphaned comments are pooled onto the first leaf below them / file head.
   pruneMap(root, emptyAtParse);
   if (options.style !== "preserve") {
     restyleMap(root, options.style);
@@ -467,7 +512,9 @@ export function rewriteConfigFile(
   const rebuilt =
     options.structure === "dotted"
       ? buildDotted([...leaves.values()])
-      : buildNested(buildTree([...leaves.values()], orphans), orphans);
+      : options.structure === "compact"
+        ? buildCompact(buildTree([...leaves.values()], orphans), orphans)
+        : buildNested(buildTree([...leaves.values()], orphans), orphans);
   setLeadingComments(rebuilt, orphans);
   // Hand-built map nodes are fresh and well-formed but not Parsed-typed (no
   // parsed ranges); assignment needs one trust-us cast after a structural fit.
