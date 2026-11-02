@@ -1,12 +1,32 @@
+spring:
+  config:
+    activate:
+      # Test environment overrides and inherited enterprise defaults.
+      onProfile: test
+  datasource:
+    url: jdbc:postgresql://test-db:5432/payments
+    username: payments_test
+    hikari:
+      maximumPoolSize: 5
+  liquibase:
+    contexts: test
+  data:
+    redis:
+      host: test-redis
+      port: 6379
 app:
-  banner:
-    # test profile
-    enabled: true # banner flag
-  logs:
-    outputMode: stdout
-    streamingEnabled: false
-  customCRMFlag: true
-  metrics:
-    export:
-      prometheus:
-        enabled: true
+  dataSources:
+    ledger:
+      jdbcUrl: jdbc:postgresql://test-db:5432/ledger
+      username: ledger_test
+      password: ${TEST_LEDGER_DB_PASSWORD:}
+      hikari:
+        maximumPoolSize: 4
+    audit:
+      jdbcUrl: jdbc:sqlserver://test-audit-db:1433;databaseName=audit;encrypt=true
+      username: audit_test
+      password: ${TEST_AUDIT_DB_PASSWORD:}
+      hikari:
+        maximumPoolSize: 3
+  featureFlags:
+    reconciliationV2: true

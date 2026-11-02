@@ -1,0 +1,46 @@
+# Shared defaults for the payment orchestration service.
+spring.application.name: payment-orchestrator
+spring.config.import:
+  - optional:configserver:${CONFIG_SERVER_URI:http://config-server:8888}
+spring.cloud.config.enabled: true
+spring.cloud.config.failFast: true
+spring.cloud.config.retry.maxAttempts: 5
+spring.cloud.azure.profile.tenantId: ${AZURE_TENANT_ID:00000000-0000-0000-0000-000000000000}
+spring.cloud.azure.credential.clientId: ${AZURE_CLIENT_ID:payments-api}
+spring.cloud.azure.activeDirectory.enabled: true
+spring.cloud.azure.activeDirectory.appIdUri: api://payments-api
+spring.security.oauth2.resourceserver.jwt.issuerUri: ${ENTRA_ISSUER_URI:https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0}
+spring.datasource.url: ${PAYMENTS_DB_URL:jdbc:postgresql://localhost:5432/payments}
+spring.datasource.username: ${PAYMENTS_DB_USER:payments_app}
+spring.datasource.password: ${PAYMENTS_DB_PASSWORD:}
+spring.datasource.driverClassName: org.postgresql.Driver
+spring.datasource.hikari.maximumPoolSize: 20
+spring.datasource.hikari.minimumIdle: 5
+spring.datasource.hikari.connectionTimeout: 30000
+spring.liquibase.changeLog: classpath:/db/changelog/db.changelog-master.yaml
+spring.liquibase.contexts: ${DB_MIGRATION_CONTEXT:default}
+spring.data.redis.host: ${REDIS_HOST:localhost}
+spring.data.redis.port: ${REDIS_PORT:6379}
+server.shutdown: graceful
+server.forwardHeadersStrategy: framework
+management.endpoints.web.exposure.include:
+  - health
+  - info
+  - prometheus
+management.endpoint.health.showDetails: when-authorized
+management.endpoint.health.probes.enabled: true
+management.metrics.distribution.percentilesHistogram.http.server.requests: true
+app.security.audience: api://payments-api
+app.dataSources.ledger.driverClassName: org.postgresql.Driver
+app.dataSources.ledger.jdbcUrl: ${LEDGER_DB_URL:jdbc:postgresql://localhost:5432/ledger}
+app.dataSources.ledger.username: ${LEDGER_DB_USER:ledger_app}
+app.dataSources.ledger.password: ${LEDGER_DB_PASSWORD:}
+app.dataSources.ledger.hikari.maximumPoolSize: 10
+app.dataSources.audit.driverClassName: com.microsoft.sqlserver.jdbc.SQLServerDriver
+app.dataSources.audit.jdbcUrl: ${AUDIT_DB_URL:jdbc:sqlserver://localhost:1433;databaseName=audit;encrypt=true}
+app.dataSources.audit.username: ${AUDIT_DB_USER:audit_app}
+app.dataSources.audit.password: ${AUDIT_DB_PASSWORD:}
+app.dataSources.audit.hikari.maximumPoolSize: 8
+app.messaging.serviceBus.namespace: ${AZURE_SERVICE_BUS_NAMESPACE:payments-dev.servicebus.windows.net}
+app.messaging.serviceBus.queueName: payment-events
+app.featureFlags.reconciliationV2: false

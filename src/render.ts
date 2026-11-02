@@ -10,7 +10,7 @@
 import type { RedundantEntry } from "./compare.ts";
 import { ConfigError } from "./configfile.ts";
 import { DiscoveryError } from "./discovery.ts";
-import type { FileError, FileResult } from "./report.ts";
+import type { BaseRewritePreview, FileError, FileResult } from "./report.ts";
 import type { Style } from "./style.ts";
 
 /** How the run will treat findings; drives wording and whether frames remain valid. */
@@ -32,6 +32,7 @@ export type Hint = HintCommand | HintText;
 export interface RenderOptions {
   mode: RenderMode;
   style: Style;
+  basePreview?: BaseRewritePreview;
   hints?: Hint[];
 }
 
@@ -186,6 +187,13 @@ function fixBlock(result: FileResult, style: Style): string[] | undefined {
   return [header, ...rows];
 }
 
+function basePreviewLine(preview: BaseRewritePreview, mode: RenderMode, style: Style): string {
+  const label = mode === "check" ? style.error("✖ Base config:") : style.dim("Base config:");
+  return `${label} ${style.path(preview.file)} ${style.dim(
+    `(would be updated; style: ${preview.style}; structure: ${preview.structure})`,
+  )}`;
+}
+
 /** YAML parse position carried by a config error, if any. */
 function configPosition(error: FileError): { line: number; column: number } | undefined {
   const candidate = error as { line?: unknown; column?: unknown };
@@ -334,7 +342,7 @@ export function renderResults(results: FileResult[], options: RenderOptions): st
     }),
     ...hintLines(options.hints ?? [], style),
   ];
-  if (blocks.length === 0 && summary === undefined) {
+  if (blocks.length === 0 && summary === undefined && options.basePreview === undefined) {
     return `${style.success(CLEAN_LINE)}\n`;
   }
   const sections = [...blocks.map((block) => block.join("\n"))];
@@ -343,6 +351,9 @@ export function renderResults(results: FileResult[], options: RenderOptions): st
   }
   if (hints.length > 0) {
     sections.push(hints.join("\n"));
+  }
+  if (options.basePreview !== undefined) {
+    sections.push(basePreviewLine(options.basePreview, mode, style));
   }
   return `${sections.join(BLOCK_SEPARATOR)}\n`;
 }

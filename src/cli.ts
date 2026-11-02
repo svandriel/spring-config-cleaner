@@ -3,22 +3,24 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Command, CommanderError, Option } from "commander";
 import pkg from "../package.json" with { type: "json" };
+import type { BaseRewritePreview, CheckResult } from "./index.ts";
 import { checkConfigs, fixConfigs } from "./index.ts";
 import type { KeyStyle } from "./keys.ts";
 import { type Hint, type RenderMode, renderResults } from "./render.ts";
 import type { Structure } from "./rewrite.ts";
 import { colorEnabled, createStyle, type Style } from "./style.ts";
 
-const STYLES: readonly string[] = ["kebab", "camel", "snake", "preserve"];
-const STRUCTURES: readonly string[] = ["preserve", "nested", "dotted", "compact"];
-const DEFAULT_STYLE = "preserve";
-const DEFAULT_STRUCTURE = "preserve";
+const STYLES: readonly KeyStyle[] = ["kebab", "camel", "snake", "preserve"];
+const STRUCTURES: readonly Structure[] = ["preserve", "nested", "dotted", "compact"];
+const DEFAULT_STYLE: KeyStyle = "preserve";
+const DEFAULT_STRUCTURE: Structure = "compact";
 const COMMAND = "spring-config-cleaner";
 
 /** Parsed option shape of the program (every option carries a default). */
 interface Options {
   fix: boolean;
   dryRun: boolean;
+  base: boolean;
   style: KeyStyle;
   structure: Structure;
 }
@@ -46,6 +48,7 @@ function directoryWord(dir: string): string {
 function commandFor(flags: string[], dir: string, options: Options): string {
   const rewritten = [
     ...flags,
+    ...(options.base && (flags.includes("--fix") || flags.includes("--check")) ? ["--base"] : []),
     ...(options.style === DEFAULT_STYLE ? [] : ["--style", options.style]),
     ...(options.structure === DEFAULT_STRUCTURE ? [] : ["--structure", options.structure]),
     directoryWord(dir),
@@ -54,11 +57,20 @@ function commandFor(flags: string[], dir: string, options: Options): string {
 }
 
 /** Mode- and outcome-specific next steps; empty when there is nothing to act on. */
-function hintsFor(mode: RenderMode, duplicates: number, dir: string, options: Options): Hint[] {
-  if (duplicates === 0) {
+function hintsFor(
+  mode: RenderMode,
+  duplicates: number,
+  baseWouldChange: boolean,
+  dir: string,
+  options: Options,
+): Hint[] {
+  if (duplicates === 0 && !baseWouldChange) {
     return [];
   }
   if (mode === "check") {
+    if (duplicates === 0) {
+      return [{ label: "Format base:", command: commandFor(["--fix"], dir, options) }];
+    }
     return [
       { label: "Remove them:", command: commandFor(["--fix"], dir, options) },
       {
@@ -95,6 +107,7 @@ export async function runCli(argv: string[]): Promise<number> {
     .exitOverride()
     .argument("[dir]", "config directory to process", process.cwd())
     .option("--fix", "rewrite the profile files, removing duplicates", false)
+    .option("--base", "also check or rewrite the base application.yml file", false)
     .addOption(
       new Option("--check", "report duplicates without writing (default)").conflicts("fix"),
     )
@@ -131,29 +144,41 @@ export async function runCli(argv: string[]): Promise<number> {
     );
     return 1;
   }
-
   // Argument defaults live in processedArgs (not opts); the commander-declared
   // default is process.cwd().
   const [dirArg] = program.processedArgs;
   const dir = typeof dirArg === "string" ? dirArg : process.cwd();
   const mode: RenderMode = options.fix ? (options.dryRun ? "dry-run" : "fix") : "check";
 
-  const result = options.fix
-    ? await fixConfigs(dir, {
-        style: options.style,
-        structure: options.structure,
-        dryRun: options.dryRun,
-      })
-    : await checkConfigs(dir);
+  let result: CheckResult;
+  let basePreview: BaseRewritePreview | undefined;
+  if (options.fix) {
+    const fixed = await fixConfigs(dir, {
+      style: options.style,
+      structure: options.structure,
+      base: options.base,
+      dryRun: options.dryRun,
+    });
+    result = fixed;
+    basePreview = fixed.basePreview;
+  } else {
+    result = await checkConfigs(dir, {
+      base: options.base,
+      style: options.style,
+      structure: options.structure,
+    });
+    basePreview = result.basePreview;
+  }
   process.stdout.write(
     renderResults(result.files, {
       mode,
       style: stdoutStyle,
-      hints: hintsFor(mode, result.duplicates, dir, options),
+      ...(basePreview === undefined ? {} : { basePreview }),
+      hints: hintsFor(mode, result.duplicates, basePreview !== undefined, dir, options),
     }),
   );
   const errored = result.files.some((file) => file.error !== undefined);
-  return errored || (!options.fix && result.duplicates > 0) ? 1 : 0;
+  return errored || (!options.fix && (result.duplicates > 0 || basePreview !== undefined)) ? 1 : 0;
 }
 
 /** True when this module is the node entry (`node dist/cli.js`, bin symlinks included). */

@@ -10,7 +10,7 @@ import { compareProfileFile, type RedundantEntry } from "./compare.ts";
 import { ConfigError, type ConfigFile } from "./configfile.ts";
 import { DiscoveryError, type DiscoveryResult, discoverConfigs } from "./discovery.ts";
 import { extractProfileName, type KeyStyle } from "./keys.ts";
-import type { FileResult } from "./report.ts";
+import type { BaseRewritePreview, FileResult } from "./report.ts";
 import { rewriteConfigFile, type Structure } from "./rewrite.ts";
 
 export * from "./activation.ts";
@@ -23,7 +23,7 @@ export { DiscoveryError, discoverConfigs } from "./discovery.ts";
 export type { KeyStyle } from "./keys.ts";
 export { canonicalKey, extractProfileName, renderSegment, splitWords } from "./keys.ts";
 export * from "./paths.ts";
-export type { FileResult } from "./report.ts";
+export type { BaseRewritePreview, FileResult } from "./report.ts";
 export { NO_DUPLICATES_LINE, renderReport } from "./report.ts";
 export type { Structure, WriteOptions } from "./rewrite.ts";
 export { rewriteConfigFile } from "./rewrite.ts";
@@ -31,24 +31,41 @@ export * from "./values.ts";
 
 /** Check/fix outcome across all profile files of a config directory. */
 export interface CheckResult {
-  /** One result per discovered profile file, in profile-name order. */
+  /** One result per discovered profile file, plus a base-format error when applicable. */
   files: FileResult[];
   /** Redundant entries counted across all profile files. */
   duplicates: number;
+  /** Present when the base file would change under a requested `--base` check. */
+  basePreview?: BaseRewritePreview;
 }
 
-/** Options for `fixConfigs`: key restyle, structural layout, dry-run. */
+/** Optional base-format validation for `checkConfigs`. */
+export interface CheckOptions {
+  /** Check that the base file already matches the selected format. */
+  base?: boolean;
+  /** Key style to validate when `base` is enabled; defaults to `preserve`. */
+  style?: KeyStyle;
+  /** Structure to validate when `base` is enabled; defaults to `preserve`. */
+  structure?: Structure;
+}
+
+/** Options for `fixConfigs`: key restyle, structural layout, optional base formatting, dry-run. */
 export interface FixOptions {
   /** Style surviving key segments are re-rendered in. */
   style: KeyStyle;
   /** Structural layout of the rewritten files. */
   structure: Structure;
+  /** Also rewrite the base application file using `style` and `structure`. */
+  base?: boolean;
   /** Compute the rewrite but never write to disk. */
   dryRun?: boolean;
 }
 
-/** Outcome of a fix run; shapes identically to a check run's result. */
-export type FixResult = CheckResult;
+/** Outcome of a fix run, optionally indicating a base-file change in dry-run mode. */
+export interface FixResult extends CheckResult {
+  /** Base file that would change when `base` and `dryRun` are both enabled. */
+  basePreview?: BaseRewritePreview;
+}
 
 /** Source text carried by a thrown value, when it has one. */
 function sourceOf(error: unknown): string | undefined {
@@ -90,6 +107,7 @@ function errorPath(fallback: string, error: unknown): string {
 async function analyzeConfigs(
   dir: string,
   apply?: (profile: ConfigFile, redundant: RedundantEntry[]) => Promise<void>,
+  applyBase?: (base: ConfigFile) => Promise<void>,
 ): Promise<CheckResult> {
   let discovered: DiscoveryResult;
   try {
@@ -98,6 +116,20 @@ async function analyzeConfigs(
     return errorResult(errorPath(dir, err), err);
   }
   const { base, profiles } = discovered;
+
+  let baseFailure: FileResult | undefined;
+  if (applyBase !== undefined) {
+    try {
+      await applyBase(base);
+    } catch (err) {
+      baseFailure = {
+        file: errorPath(base.path, err),
+        redundant: [],
+        source: base.source,
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
+    }
+  }
 
   const files = await Promise.all(
     profiles.map(async (profile): Promise<FileResult> => {
@@ -123,7 +155,7 @@ async function analyzeConfigs(
   );
 
   return {
-    files,
+    files: [...(baseFailure === undefined ? [] : [baseFailure]), ...files],
     duplicates: files.reduce((count, file) => count + file.redundant.length, 0),
   };
 }
@@ -131,27 +163,67 @@ async function analyzeConfigs(
 /**
  * Check `dir` for redundant profile entries: discover the base and profiles,
  * compare each profile against the base, and report per-file results without
- * modifying the disk.
+ * modifying the disk. When `options.base` is enabled, also report if formatting
+ * the base file with the selected style and structure would change it.
  */
-export async function checkConfigs(dir: string): Promise<CheckResult> {
-  return analyzeConfigs(dir);
+export async function checkConfigs(dir: string, options: CheckOptions = {}): Promise<CheckResult> {
+  let basePreview: BaseRewritePreview | undefined;
+  const result = await analyzeConfigs(
+    dir,
+    undefined,
+    options.base === true
+      ? async (base) => {
+          const style = options.style ?? "preserve";
+          const structure = options.structure ?? "preserve";
+          const rewritten = rewriteConfigFile(base.source, [], { style, structure });
+          if (rewritten !== base.source) {
+            basePreview = { file: base.path, style, structure };
+          }
+        }
+      : undefined,
+  );
+  return basePreview === undefined ? result : { ...result, basePreview };
 }
 
 /**
  * Fix `dir`: like `checkConfigs`, but every profile file with redundant
  * entries is rewritten (key restyle and structural layout per `options`) and
- * written back unless `dryRun`. Files without duplicates and the base file
- * are never written.
+ * written back unless `dryRun`. Files without duplicates are never written;
+ * the base file is rewritten only when `options.base` is true.
  */
 export async function fixConfigs(dir: string, options: FixOptions): Promise<FixResult> {
-  return analyzeConfigs(dir, async (profile, redundant) => {
-    if (options.dryRun === true) {
-      return;
-    }
-    const rewritten = rewriteConfigFile(profile.source, redundant, {
-      style: options.style,
-      structure: options.structure,
-    });
-    await writeFile(profile.path, rewritten, "utf8");
-  });
+  let basePreview: BaseRewritePreview | undefined;
+  const result = await analyzeConfigs(
+    dir,
+    async (profile, redundant) => {
+      if (options.dryRun === true) {
+        return;
+      }
+      const rewritten = rewriteConfigFile(profile.source, redundant, {
+        style: options.style,
+        structure: options.structure,
+      });
+      await writeFile(profile.path, rewritten, "utf8");
+    },
+    options.base === true
+      ? async (base) => {
+          const rewritten = rewriteConfigFile(base.source, [], {
+            style: options.style,
+            structure: options.structure,
+          });
+          if (options.dryRun === true) {
+            if (rewritten !== base.source) {
+              basePreview = {
+                file: base.path,
+                style: options.style,
+                structure: options.structure,
+              };
+            }
+          } else {
+            await writeFile(base.path, rewritten, "utf8");
+          }
+        }
+      : undefined,
+  );
+  return basePreview === undefined ? result : { ...result, basePreview };
 }

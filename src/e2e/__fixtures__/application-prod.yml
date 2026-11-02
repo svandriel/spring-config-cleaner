@@ -1,12 +1,74 @@
-# prod profile
+# Production environment overrides and inherited enterprise defaults.
+spring:
+  config:
+    activate:
+      on-profile: prod
+    import:
+      - optional:configserver:${CONFIG_SERVER_URI:http://config-server:8888}
+  cloud:
+    config:
+      enabled: true
+      fail-fast: true
+      retry:
+        max-attempts: 5
+    azure:
+      profile:
+        tenant-id: ${AZURE_TENANT_ID:00000000-0000-0000-0000-000000000000}
+      credential:
+        client-id: ${AZURE_CLIENT_ID:payments-api}
+      active-directory:
+        enabled: true
+        app-id-uri: api://payments-api
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${ENTRA_ISSUER_URI:https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0}
+  datasource:
+    url: jdbc:postgresql://payments-primary.internal:5432/payments
+    username: payments_prod
+    hikari:
+      maximum-pool-size: 40
+  liquibase:
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
+    contexts: production
+  data:
+    redis:
+      host: payments-cache.internal
+      port: 6380
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - info
+          - prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
 app:
-  duplicate: true
-  banner.enabled: false # banner flag
-  logs:
-    outputMode: file
-    streamingEnabled: true
-  customCRMFlag: false
-  metrics:
-    export:
-      prometheus:
-        enabled: false
+  security:
+    audience: api://payments-api
+  data-sources:
+    ledger:
+      driver-class-name: org.postgresql.Driver
+      jdbc-url: jdbc:postgresql://ledger-primary.internal:5432/ledger
+      username: ledger_prod
+      password: ${PROD_LEDGER_DB_PASSWORD:}
+      hikari:
+        maximum-pool-size: 30
+    audit:
+      driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+      jdbc-url: jdbc:sqlserver://audit-primary.internal:1433;databaseName=audit;encrypt=true
+      username: audit_prod
+      password: ${PROD_AUDIT_DB_PASSWORD:}
+      hikari:
+        maximum-pool-size: 20
+  messaging:
+    service-bus:
+      queue-name: payment-events
+  feature-flags:
+    reconciliation-v2: true

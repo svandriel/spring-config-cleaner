@@ -6,6 +6,7 @@ import { runCli } from "./cli.ts";
 
 const BASE = "myApp:\n  baseKey: 1\n";
 const PROFILE = "myApp:\n  baseKey: 1\n  extraKey: 2\n";
+const CLEAN_BASE = "myApp:\n  baseKey: 1\n  otherKey: 2\n";
 
 const created: string[] = [];
 
@@ -29,7 +30,7 @@ async function fixture(files: Record<string, string>): Promise<string> {
   return dir;
 }
 
-const cleanFixture = () => fixture({ "application.yml": BASE });
+const cleanFixture = () => fixture({ "application.yml": CLEAN_BASE });
 const duplicateFixture = () =>
   fixture({ "application.yml": BASE, "application-prod.yml": PROFILE });
 
@@ -148,12 +149,38 @@ describe("runCli", () => {
     expect(text).toContain("--help");
   });
 
+  it("allows --base in check mode when the base file already matches the selected format", async () => {
+    silenceOutput();
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const dir = await cleanFixture();
+    expect(await runCli([dir, "--base"])).toBe(0);
+    expect(written(log)).toBe("✓ No duplicates found.\n");
+  });
+
+  it("fails check mode when formatting the base file would change it", async () => {
+    silenceOutput();
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const dir = await cleanFixture();
+    const basePath = join(dir, "application.yml");
+    const base = await readFile(basePath, "utf8");
+
+    expect(await runCli([dir, "--base", "--structure", "dotted"])).toBe(1);
+
+    expect(written(log)).toContain(
+      `✖ Base config: ${basePath} (would be updated; style: preserve; structure: dotted)`,
+    );
+    expect(written(log)).toContain(
+      `Format base:  spring-config-cleaner --fix --base --structure dotted ${dir}`,
+    );
+    expect(await readFile(basePath, "utf8")).toBe(base);
+  });
+
   it("preserves surviving key spelling by default when fixing duplicates", async () => {
     silenceOutput();
     const dir = await duplicateFixture();
     expect(await runCli([dir, "--fix"])).toBe(0);
     const profile = await readFile(join(dir, "application-prod.yml"), "utf8");
-    expect(profile).toBe("myApp:\n  extraKey: 2\n");
+    expect(profile).toBe("myApp.extraKey: 2\n");
     expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(BASE);
   });
 
@@ -163,6 +190,14 @@ describe("runCli", () => {
     const dir = await duplicateFixture();
     expect(await runCli([dir, "--fix"])).toBe(0);
     expect(written(log)).toContain(`Verify:  spring-config-cleaner --check ${dir}`);
+  });
+
+  it("includes --base in the verification hint when the base file was fixed", async () => {
+    silenceOutput();
+    const log = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const dir = await duplicateFixture();
+    expect(await runCli([dir, "--fix", "--base"])).toBe(0);
+    expect(written(log)).toContain(`Verify:  spring-config-cleaner --check --base ${dir}`);
   });
 
   it("--dry-run with --fix leaves the disk identical and hints at applying", async () => {

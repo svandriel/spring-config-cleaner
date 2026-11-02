@@ -19,11 +19,17 @@ pnpm add spring-config-cleaner
 ### CLI
 
 ```sh
-# Check (default mode): print a report, exit 1 when duplicates or errors
+# Check (default mode): exit 1 for duplicates, errors, or a requested base format mismatch
 spring-config-cleaner [dir]
+
+# Also check that application.yml already matches the selected format
+spring-config-cleaner --base [dir]
 
 # Fix: rewrite the profile files, removing duplicate entries
 spring-config-cleaner --fix [dir]
+
+# Also rewrite the base application.yml using the selected style and structure
+spring-config-cleaner --fix --base --style kebab --structure nested [dir]
 
 # Preview a fix without writing anything
 spring-config-cleaner --fix --dry-run [dir]
@@ -33,9 +39,11 @@ Options:
 
 - `--check` — report duplicates without writing (default mode; mutually exclusive with `--fix`)
 - `--fix` — remove the duplicate entries from the profile files
+- `--base` — check that `application.yml` already matches the selected style and structure;
+  with `--fix`, rewrite it too (omitted by default)
 - `--dry-run` — compute the fix but never write (requires `--fix`)
 - `--style <kebab|camel|snake|preserve>` — key style for surviving keys (default `preserve`)
-- `--structure <preserve|nested|dotted|compact>` — layout of the rewritten files (default `preserve`)
+- `--structure <preserve|nested|dotted|compact>` — layout of the rewritten files (default `compact`)
 
 `compact` uses dotted keys for single-child paths and keeps branching mappings
 nested.
@@ -60,6 +68,8 @@ full `path:line:column` in their headers.
 ```
 
 `--fix --dry-run` keeps the frames and marks each entry `(would remove)`;
+with `--base`, it also reports at the end that `application.yml` would be
+updated using the selected style and structure, without writing the file.
 `--fix` prints the entries it removed and how to verify:
 
 ```text
@@ -89,6 +99,7 @@ console.log(check.duplicates, check.files);
 await fixConfigs("./src/main/resources", {
   style: "kebab",
   structure: "dotted",
+  base: true,
   dryRun: false,
 });
 ```

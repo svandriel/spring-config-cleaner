@@ -1,6 +1,17 @@
-# prod profile
-app.banner.enabled: false # banner flag
-app.logs.output_mode: file
-app.logs.streaming_enabled: true
-app.custom_crm_flag: false
-app.metrics.export.prometheus.enabled: false
+# Production environment overrides and inherited enterprise defaults.
+spring.config.activate.on_profile: prod
+spring.datasource.url: jdbc:postgresql://payments-primary.internal:5432/payments
+spring.datasource.username: payments_prod
+spring.datasource.hikari.maximum_pool_size: 40
+spring.liquibase.contexts: production
+spring.data.redis.host: payments-cache.internal
+spring.data.redis.port: 6380
+app.data_sources.ledger.jdbc_url: jdbc:postgresql://ledger-primary.internal:5432/ledger
+app.data_sources.ledger.username: ledger_prod
+app.data_sources.ledger.password: ${PROD_LEDGER_DB_PASSWORD:}
+app.data_sources.ledger.hikari.maximum_pool_size: 30
+app.data_sources.audit.jdbc_url: jdbc:sqlserver://audit-primary.internal:1433;databaseName=audit;encrypt=true
+app.data_sources.audit.username: audit_prod
+app.data_sources.audit.password: ${PROD_AUDIT_DB_PASSWORD:}
+app.data_sources.audit.hikari.maximum_pool_size: 20
+app.feature_flags.reconciliation_v2: true

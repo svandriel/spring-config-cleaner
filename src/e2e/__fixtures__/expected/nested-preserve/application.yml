@@ -1,0 +1,88 @@
+spring:
+  application:
+    # Shared defaults for the payment orchestration service.
+    name: payment-orchestrator
+  config:
+    import:
+      - optional:configserver:${CONFIG_SERVER_URI:http://config-server:8888}
+  cloud:
+    config:
+      enabled: true
+      fail-fast: true
+      retry:
+        max-attempts: 5
+    azure:
+      profile:
+        tenant-id: ${AZURE_TENANT_ID:00000000-0000-0000-0000-000000000000}
+      credential:
+        client-id: ${AZURE_CLIENT_ID:payments-api}
+      active-directory:
+        enabled: true
+        app-id-uri: api://payments-api
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${ENTRA_ISSUER_URI:https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0}
+  datasource:
+    url: ${PAYMENTS_DB_URL:jdbc:postgresql://localhost:5432/payments}
+    username: ${PAYMENTS_DB_USER:payments_app}
+    password: ${PAYMENTS_DB_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+  liquibase:
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
+    contexts: ${DB_MIGRATION_CONTEXT:default}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+server:
+  shutdown: graceful
+  forward-headers-strategy: framework
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - info
+          - prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true
+app:
+  security:
+    audience: api://payments-api
+  data-sources:
+    ledger:
+      driver-class-name: org.postgresql.Driver
+      jdbc-url: ${LEDGER_DB_URL:jdbc:postgresql://localhost:5432/ledger}
+      username: ${LEDGER_DB_USER:ledger_app}
+      password: ${LEDGER_DB_PASSWORD:}
+      hikari:
+        maximum-pool-size: 10
+    audit:
+      driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+      jdbc-url: ${AUDIT_DB_URL:jdbc:sqlserver://localhost:1433;databaseName=audit;encrypt=true}
+      username: ${AUDIT_DB_USER:audit_app}
+      password: ${AUDIT_DB_PASSWORD:}
+      hikari:
+        maximum-pool-size: 8
+  messaging:
+    service-bus:
+      namespace: ${AZURE_SERVICE_BUS_NAMESPACE:payments-dev.servicebus.windows.net}
+      queue-name: payment-events
+  feature-flags:
+    reconciliation-v2: false

@@ -1,6 +1,17 @@
-# test profile
-app.banner.enabled: true # banner flag
-app.logs.outputMode: stdout
-app.logs.streamingEnabled: false
-app.customCRMFlag: true
-app.metrics.export.prometheus.enabled: true
+# Test environment overrides and inherited enterprise defaults.
+spring.config.activate.on-profile: test
+spring.datasource.url: jdbc:postgresql://test-db:5432/payments
+spring.datasource.username: payments_test
+spring.datasource.hikari.maximum-pool-size: 5
+spring.liquibase.contexts: test
+spring.data.redis.host: test-redis
+spring.data.redis.port: 6379
+app.data-sources.ledger.jdbc-url: jdbc:postgresql://test-db:5432/ledger
+app.data-sources.ledger.username: ledger_test
+app.data-sources.ledger.password: ${TEST_LEDGER_DB_PASSWORD:}
+app.data-sources.ledger.hikari.maximum-pool-size: 4
+app.data-sources.audit.jdbc-url: jdbc:sqlserver://test-audit-db:1433;databaseName=audit;encrypt=true
+app.data-sources.audit.username: audit_test
+app.data-sources.audit.password: ${TEST_AUDIT_DB_PASSWORD:}
+app.data-sources.audit.hikari.maximum-pool-size: 3
+app.feature-flags.reconciliation-v2: true

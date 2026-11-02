@@ -127,21 +127,120 @@ describe("e2e CLI", () => {
     "matches %s-%s structure and style output files",
     async (structure, style) => {
       const dir = await copyFixture();
-      const result = runCli(dir, ["--fix", "--structure", structure, "--style", style]);
+      const result = runCli(dir, ["--fix", "--base", "--structure", structure, "--style", style]);
 
       expect(result.status).toBe(0);
       await Promise.all(
-        ["application-test.yml", "application-prod.yml"].map(async (file) => {
+        ["application.yml", "application-test.yml", "application-prod.yml"].map(async (file) => {
           await expect(await readFile(join(dir, file), "utf8")).toMatchFileSnapshot(
             join(FIXTURES, "expected", `${structure}-${style}`, file),
           );
         }),
       );
-      expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(
-        await readFile(join(FIXTURES, "application.yml"), "utf8"),
-      );
     },
   );
+
+  it("removes enterprise defaults while retaining test and production database overrides", async () => {
+    const dir = await copyFixture();
+
+    const checked = runCli(dir);
+
+    expect(checked.status).toBe(1);
+    expect(checked.stdout).toContain(join(dir, "application-test.yml"));
+    expect(checked.stdout).toContain(join(dir, "application-prod.yml"));
+    expect(checked.stdout).toContain("spring.cloud.config.enabled");
+    expect(checked.stdout).toContain("spring.cloud.azure.active-directory.enabled");
+    expect(checked.stdout).toContain("spring.security.oauth2.resourceserver.jwt.issuer-uri");
+    expect(checked.stdout).toContain("app.data-sources.ledger.driver-class-name");
+
+    const fixed = runCli(dir, ["--fix", "--base"]);
+
+    expect(fixed.status).toBe(0);
+    expect(runCli(dir).status).toBe(0);
+    expect(await readFile(join(dir, "application-test.yml"), "utf8")).toContain(
+      "jdbc:postgresql://test-db:5432/payments",
+    );
+    expect(await readFile(join(dir, "application-prod.yml"), "utf8")).toContain(
+      "jdbc:postgresql://payments-primary.internal:5432/payments",
+    );
+  });
+
+  it("formats the base file with the selected structure and style when --base is set", async () => {
+    const dir = await copyFixture();
+    await writeFile(join(dir, "application.yml"), "myApp:\n  camelCaseKey: value\n");
+
+    const result = runCli(dir, ["--fix", "--base", "--structure", "dotted", "--style", "kebab"]);
+
+    expect(result.status).toBe(0);
+    expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(
+      "my-app.camel-case-key: value\n",
+    );
+  });
+
+  it("fails --base check when formatting would change the base file", async () => {
+    const dir = await copyFixture("clean");
+    const basePath = join(dir, "application.yml");
+    const base = "myApp:\n  camelCaseKey: value\n";
+    await writeFile(basePath, base);
+
+    const result = runCli(dir, ["--base", "--structure", "dotted", "--style", "kebab"]);
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      `✖ Base config: ${basePath} (would be updated; style: kebab; structure: dotted)`,
+    );
+    expect(result.stdout).toContain(
+      `Format base:  spring-config-cleaner --fix --base --style kebab --structure dotted ${dir}`,
+    );
+    expect(await readFile(basePath, "utf8")).toBe(base);
+  });
+
+  it("shows base formatting operations in a dry run without writing the file", async () => {
+    const dir = await copyFixture();
+    const basePath = join(dir, "application.yml");
+    const base = "myApp:\n  camelCaseKey: value\n";
+    const testProfile = "myApp:\n  camelCaseKey: value\n  testOnly: true\n";
+    await writeFile(basePath, base);
+    await writeFile(join(dir, "application-test.yml"), testProfile);
+
+    const result = runCli(dir, [
+      "--fix",
+      "--dry-run",
+      "--base",
+      "--structure",
+      "dotted",
+      "--style",
+      "kebab",
+    ]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).not.toContain("Resulting YAML:");
+    expect(result.stdout).not.toContain("my-app.camel-case-key: value");
+    expect(
+      result.stdout
+        .trimEnd()
+        .endsWith(`Base config: ${basePath} (would be updated; style: kebab; structure: dotted)`),
+    ).toBe(true);
+    expect(result.stdout).toContain("duplicate  myApp.camelCaseKey = value (would remove)");
+    expect(result.stdout).toContain(
+      "1 duplicate in 1 of 2 profile files (dry run — nothing written)",
+    );
+    expect(await readFile(basePath, "utf8")).toBe(base);
+    expect(await readFile(join(dir, "application-test.yml"), "utf8")).toBe(testProfile);
+  });
+
+  it("offers an apply command for a base-only dry run", async () => {
+    const dir = await copyFixture("clean");
+    const base = await readFile(join(dir, "application.yml"), "utf8");
+
+    const result = runCli(dir, ["--fix", "--dry-run", "--base", "--structure", "dotted"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      `Apply:  spring-config-cleaner --fix --base --structure dotted ${dir}`,
+    );
+    expect(await readFile(join(dir, "application.yml"), "utf8")).toBe(base);
+  });
 
   it("reports a clean fixture and leaves it untouched", async () => {
     const dir = await copyFixture("clean");
