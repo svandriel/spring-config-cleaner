@@ -5,5 +5,13 @@ pnpm lint
 branch=$(git branch --show-current)
 case "$branch" in
   changeset-release/*) ;;
+  next)
+    if git show-ref --verify --quiet refs/remotes/origin/next; then
+      pnpm exec changeset status --since origin/next
+    else
+      echo "origin/next not found; comparing changesets against origin/main for initial next push."
+      pnpm exec changeset status --since origin/main
+    fi
+    ;;
   *) pnpm exec changeset status --since origin/main ;;
 esac

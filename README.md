@@ -133,11 +133,47 @@ that should not trigger a release, use:
 pnpm exec changeset --empty
 ```
 
-When changesets are merged to `main`, GitHub Actions opens or updates a version
-pull request. Merging that pull request updates `package.json` and
-`CHANGELOG.md`; publishing to npm remains a separate manual step.
-In repository settings, allow GitHub Actions to create pull requests so the
-version PR can be opened.
+Publishing is automated by `.github/workflows/publish.yml`:
+
+- Pushes to `main` create stable npm releases and create GitHub Releases + git tags.
+- Pushes to `next` publish prereleases to npm only (no GitHub Releases or git tags).
+
+Trusted Publishing is configured outside this repository. Set npm Trusted
+Publisher values to:
+
+- Owner: `svandriel`
+- Repository: `spring-config-cleaner`
+- Workflow filename: `publish.yml`
+- Environment: `npm-publish`
+
+Also create a GitHub Environment named `npm-publish` and restrict deployment
+branches to `main` and `next`.
+
+For the future `next` branch prerelease lifecycle:
+
+```sh
+pnpm exec changeset pre enter next
+```
+
+Run that only on `next` (not on `main`). To end prerelease mode on `next`:
+
+```sh
+pnpm exec changeset pre exit
+pnpm exec changeset version
+```
+
+Then promote those stable-ready changes to `main` for the stable publish. Do
+not merge `.changeset/pre.json` into `main`.
+
+Because this promotion PR to `main` has consumed changesets, include one empty
+changeset so PR validation still passes:
+
+```sh
+pnpm exec changeset --empty
+```
+
+In repository settings, allow GitHub Actions to create pull requests so
+Changesets can open version PRs.
 
 ## License
 
