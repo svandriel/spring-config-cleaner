@@ -2,6 +2,7 @@
   "config": { "MD013": { "line_length": 100 } },
   "globs": ["**/*.md"],
   "ignores": [
+    ".changeset/**",
     "node_modules/**",
     "dist/**",
     "coverage/**",

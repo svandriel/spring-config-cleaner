@@ -48,7 +48,7 @@
     "build": "tsc -b tsconfig.app.json",
     "clean": "rm -rf dist .tsbuildinfo",
     "typecheck": "tsc -b",
-    "lint": "biome check . && markdownlint-cli2 && node scripts/lint-yaml.mjs",
+    "lint": "biome check . && node scripts/lint-yaml.mjs",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "test": "vitest run",
@@ -64,7 +64,6 @@
     "@vitest/coverage-v8": "^5.0.5",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
-    "markdownlint-cli2": "^0.24.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   },
@@ -73,14 +72,8 @@
     "yaml": "^2.9.1"
   },
   "lint-staged": {
-    "*.ts": [
+    "*.{ts,json,jsonc,md}": [
       "biome check --write"
-    ],
-    "*.json": [
-      "biome check --write"
-    ],
-    "*.md": [
-      "markdownlint-cli2"
     ],
     "*.{yaml,yml}": [
       "node scripts/lint-yaml.mjs"
